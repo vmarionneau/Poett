@@ -30,6 +30,12 @@ arToType ar = foldr Pi (U (arSort ar)) (arArgs ar)
 indType :: Ind STy -> STy
 indType = arToType . indArity
 
+csArgType :: CsArg STy -> STy
+csArgType arg = foldr Pi (argRes arg) (argArgs arg)
+
+constrType :: [STy] -> Constructor STy -> STy
+constrType pars cs = foldr Pi (csResult cs) (pars ++ (csArgType <$> csArgs cs))
+
 lctxToSubst :: LocalCtx -> [STm]
 lctxToSubst = map (\ (i, entry) -> case (entryDef entry) of
                                      Nothing -> Var i
@@ -72,8 +78,11 @@ infer_ ctx (App tm args) =
                 (tyarg, tyres) <- asPi (whnf aty)
                 check ctx arg tyarg
                 pure $ ESubst (Subst [arg] Map.empty) tyres
-          ) (inCtx ctx ty) args 
-infer_ ctx (Constr ind i args) = Left "Constructors yet to be implemented"
+          ) (inCtx ctx ty) args
+infer_ ctx (Cast tm ty) = check ctx tm ty >> pure ty
+infer_ ctx (Constr ind i) =
+  maybeEither ("Unknown constructor of " ++ indName ind ++ " : " ++ show i)
+  (constrType (indParams ind) <$> indConstructors ind `atMay` i)
 infer_ ctx (Elim ind) = Left "Eliminators yet to be implemented"
 infer_ _ _ = Left "Can't infer abstractions"
         
@@ -85,9 +94,10 @@ check ctx tm ty =
     check_ ctx (pushSubst tm) (whnf $ inCtx ctx ty)
     
 check_ :: Ctx -> STm -> STy -> Either String ()
-check_ ctx  (Abs _ tm) (Pi ty fam) =
+check_ ctx  (Abs tm) (Pi ty fam) =
   let ctx' = addVar ctx ty in
     check ctx' tm ty
+check_ ctx tm@(Abs _) ty = Left (show tm ++ " is an abstraction but is expected to have type " ++ show ty)  
 check_ ctx (Let ty1 tm1 tm2) ty =
   do
     check ctx tm1 ty1
