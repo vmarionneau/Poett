@@ -2,7 +2,7 @@
 
 module NbE (module NbE) where
 
-import Control.Monad.Except (throwError)
+{-import Control.Monad.Except (throwError)
 import Data.List ((!?))
 import qualified Term as T (Tm (..))
 import qualified Ind as I (Lvl, Arity, Constructor, Ind)
@@ -56,3 +56,4 @@ eval γ (T.Let term body) =
 eval _ (T.Ident {}) = throwError "Unimplemented : Identifiers"
 eval _ (T.Constr {}) = throwError "Unimplemented : Constructors"
 eval _ (T.Elim {}) = throwError "Unimplemented : Eliminators"
+-}

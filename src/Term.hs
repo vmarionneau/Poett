@@ -4,10 +4,10 @@
 
 module Term (module Term) where
 
+{-
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Ind
-
 data Tm
   = Var Int
   | U Lvl
@@ -28,3 +28,4 @@ vars (Pi t1 t2) = vars t1 `Set.union` Set.map (flip (-) 1) (Set.delete 0 (vars t
 vars (Abs t1 t2) = vars t1 `Set.union` Set.map (flip (-) 1) (Set.delete 0 (vars t2))
 vars (App t1 t2) = vars t1 `Set.union` vars t2
 vars _ = Set.empty
+-}

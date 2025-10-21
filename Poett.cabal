@@ -29,6 +29,7 @@ library
       Ind
       NbE
       Term
+      Typecheck
       WHNF
   other-modules:
       Paths_Poett

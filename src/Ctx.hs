@@ -2,42 +2,58 @@
 
 module Ctx (module Ctx) where
 
-import Term (Tm, Ty, vars)
+import WHNF (STm, STy)
 import Ind
+import qualified Data.Map as Map
+import Data.Maybe (isJust, isNothing)
 
-data LocalCtxEntry = LocalCtxEntry {entryType :: Ty, entryDef :: Maybe Tm}
+data LocalCtxEntry = LocalCtxEntry {entryType :: STy,  entryDef :: Maybe STm}
   deriving (Eq, Show)
 
 type LocalCtx = [LocalCtxEntry]
 
-data GlobalCtxEntry = GCDef String Tm Ty | GCInd (Ind Ty)
-  deriving (Eq, Show)
+type DefCtx = Map.Map String (STm, STy)
+type IndCtx = Map.Map String (Ind STy)
 
-type GlobalCtx = [GlobalCtxEntry]
+data GlobalCtx = GCtx {defCtx :: DefCtx, indCtx :: IndCtx}
 
 data Ctx = Ctx {global :: GlobalCtx, local :: LocalCtx}
 
-typeOfVar :: LocalCtx → Int → Maybe Ty
+typeOfVar :: LocalCtx → Int → Maybe STy
 typeOfVar [] _ = Nothing
 typeOfVar (h : _) 0 = Just (entryType h)
 typeOfVar (_ : ctx) i = typeOfVar ctx (i - 1)
 
-wellFormedLocal :: LocalCtx → Bool
-wellFormedLocal [] = True
-wellFormedLocal (LocalCtxEntry ty Nothing : ctx) = wellFormedLocal ctx && all (< length ctx) (vars ty)
-wellFormedLocal (LocalCtxEntry ty (Just tm) : ctx) = wellFormedLocal ctx && all (< length ctx) (vars ty)
-                                                     && all (< length ctx) (vars tm)
-
-addVar :: Ctx → Ty → Ctx
+addVar :: Ctx → STy → Ctx
 addVar ctx ty = ctx {local = LocalCtxEntry ty Nothing : local ctx}
 
-addLocalDef :: Ctx → Tm → Ty → Ctx
+addLocalDef :: Ctx → STm → STy → Ctx
 addLocalDef ctx tm ty = ctx {local = LocalCtxEntry ty (Just tm) : local ctx}
 
-addGlobalDef :: Ctx → String → Tm → Ty → Ctx
-addGlobalDef ctx name tm ty = ctx {global = GCDef name tm ty : global ctx}
+addGlobalDef :: Ctx → String → STm → STy → Ctx
+addGlobalDef ctx name tm ty = ctx {global = (global ctx) {defCtx = Map.insert name (tm, ty) $ defCtx (global ctx)}}
 
-lctxLookup :: Int → LocalCtx → Maybe LocalCtxEntry
-lctxLookup _ [] = Nothing
-lctxLookup 0 (h:_) = Just h
-lctxLookup n (_:t) = lctxLookup (n - 1) t
+lctxLookupTy :: Int → LocalCtx → Maybe STy
+lctxLookupTy _ [] = Nothing
+lctxLookupTy 0 (h:_) = Just (entryType h)
+lctxLookupTy n (_:t) = lctxLookupTy (n - 1) t
+
+ctxLookupVar :: Int → Ctx → Maybe STy
+ctxLookupVar i ctx = lctxLookupTy i (local ctx)
+
+lctxLookupDef :: Int -> LocalCtx → Maybe (STy, STm)
+lctxLookupDef _ [] = Nothing
+lctxLookupDef 0 (h:_) = (\ def -> (entryType h, def)) <$> entryDef h
+lctxLookupDef n (_:t) = lctxLookupDef (n - 1) t
+
+gctxLookupDef :: String → GlobalCtx → Maybe (STy, STm)
+gctxLookupDef s ctx = Map.lookup s (defCtx ctx)
+
+ctxLookupDef :: String -> Ctx -> Maybe (STm, STy)
+ctxLookupDef s ctx = gctxLookupDef s (global ctx)
+
+gctxLookupInd :: String -> GlobalCtx -> Maybe (Ind STy)
+gctxLookupInd s ctx = Map.lookup s (indCtx ctx)
+
+ctxLookupInd :: String -> Ctx -> Maybe (Ind STy)
+ctxLookupInd s ctx = gctxLookupInd s (global ctx)
