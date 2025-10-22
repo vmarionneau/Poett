@@ -21,7 +21,7 @@ nTimes :: Int -> (a -> a) -> a -> a
 nTimes 0 _ x = x
 nTimes n f x = f (nTimes (n - 1) f x)
 
--- Type of parallel substitutions
+-- Type of sequential substitutions
 data Subst = Subst { vars :: [STm], idents :: Map.Map String STm }
   deriving Eq
 
@@ -48,10 +48,10 @@ instance Show STm where
   show (Var i) = "x" ++ show i
   show (U Prop) = "Prop"
   show (U (Type i)) = "Type " ++ show i
-  show (Pi ty1 ty2) = "Π(" ++ show ty1 ++ "). " ++ show ty2
-  show (Abs tm) = "λ " ++ show tm
-  show (App tm args) = "(" ++ show tm ++ ")" ++ concatMap (\ a -> "(" ++ show a ++ ")") args
-  show (Let ty tm1 tm2) = "let(" ++ show ty ++ ") := " ++ show tm1 ++ " in " ++ show tm2
+  show (Pi ty1 ty2) = "Π[" ++ show ty1 ++ "]." ++ show ty2
+  show (Abs tm) = "(λ " ++ show tm ++ ")"
+  show (App tm args) = show tm ++ " " ++ concatMap (\ a -> "(" ++ show a ++ ")") args
+  show (Let ty tm1 tm2) = "let[" ++ show ty ++ "] := " ++ show tm1 ++ " in " ++ show tm2
   show (Ident s) = s
   show (Cast tm ty) = "(" ++ show tm ++ " : " ++ show ty ++ ")"
   show (Constr ind i) =
@@ -78,12 +78,12 @@ bump n k (Ident i) = Ident i
 bump n k (Constr ind i) = Constr ind i
 bump n k (Cast tm ty) = Cast (bump n k tm) (bump n k ty)
 bump n k (Elim ind) = Elim ind
-bump n k (ESubst s tm) = ESubst (Subst (bump n k <$> vars s) (idents s)) (bump n k tm)
+bump n k (ESubst s tm) = ESubst (lift n k s) (bump n k tm)
 
-lift :: Subst → Subst
-lift s = Subst (Var 0 : (bump 0 1 <$> vars s)) (idents s)
+lift :: Int -> Int -> Subst → Subst
+lift n k s = Subst (take n (vars s) ++ (if length (vars s) >= n then Var <$> [n..n+k-1] else []) ++ (bump n k <$> drop n (vars s))) (idents s)
 
--- As we consider parallel substitutions, we have to compose the outer one on top of the terms of the inner one
+-- As we consider sequential substitutions, we have to compose the outer one on top of the terms of the inner one
 composeSubst :: Subst → Subst → Subst
 composeSubst outer inner = Subst ((ESubst outer <$> vars inner) ++ vars outer) (idents inner `Map.union` idents outer)
 
@@ -91,17 +91,17 @@ pushSubst :: STm → STm
 pushSubst (ESubst sb t) = aux sb t
   where
     aux s (ESubst s' t') = aux (composeSubst s s') t'
-    aux s (Var i) = fromMaybe (Var i) (vars s `atMay` i)
+    aux s (Var i) = fromMaybe (Var i) (pushSubst <$> vars s `atMay` i)
     aux _ (U l) = U l
-    aux s (Pi ty tm) = Pi (ESubst s ty) (ESubst (lift s) tm)
-    aux s (Abs tm) = Abs (ESubst (lift s) tm)
+    aux s (Pi ty tm) = Pi (ESubst s ty) (ESubst (lift 0 1 s) tm)
+    aux s (Abs tm) = Abs (ESubst (lift 0 1 s) tm)
     aux s (App tm1 args) = App (ESubst s tm1) (ESubst s <$> args)
-    aux s (Let ty tm1 tm2) = Let (ESubst s ty) (ESubst s tm1) (ESubst (lift s) tm2)
+    aux s (Let ty tm1 tm2) = Let (ESubst s ty) (ESubst s tm1) (ESubst (lift 0 1 s) tm2)
     aux s (Ident i) = fromMaybe (Ident i) (idents s Map.!? i)
     aux s (Cast tm ty) = Cast (ESubst s tm) (ESubst s ty)
-    aux s (Constr ind i) = Constr ind i
+    aux _ (Constr ind i) = Constr ind i
     aux _ (Elim ind) = Elim ind
-pushSubst t = t 
+pushSubst t = t
 
 execSubst :: STm → STm
 execSubst t = aux (Subst [] Map.empty) t
@@ -109,13 +109,13 @@ execSubst t = aux (Subst [] Map.empty) t
     aux s (ESubst s' t') = aux (composeSubst s s') t'
     aux s (Var i) = fromMaybe (Var i) (execSubst <$> vars s `atMay` i)
     aux _ (U l) = U l
-    aux s (Pi ty tm) = Pi (aux s ty) (aux (lift s) tm)
-    aux s (Abs tm) = Abs (aux (lift s) tm)
+    aux s (Pi ty tm) = Pi (aux s ty) (aux (lift 0 1 s) tm)
+    aux s (Abs tm) = Abs (aux (lift 0 1 s) tm)
     aux s (App tm1 args) = App (aux s tm1) (aux s <$> args)
-    aux s (Let ty tm1 tm2) = Let (aux s ty) (aux s tm1) (aux (lift s) tm2)
+    aux s (Let ty tm1 tm2) = Let (aux s ty) (aux s tm1) (aux (lift 0 1 s) tm2)
     aux s (Ident i) = fromMaybe (Ident i) (idents s Map.!? i)
     aux s (Cast tm ty) = Cast (aux s tm) (aux s ty)
-    aux s (Constr ind i) = Constr ind i
+    aux _ (Constr ind i) = Constr ind i
     aux _ (Elim ind) = Elim ind
 
 dummyInd :: Ind STy -> Ind STy
@@ -130,6 +130,17 @@ erase (Cast tm ty) = Cast (erase tm) (erase ty)
 erase (Constr ind i) = Constr (dummyInd ind) i 
 erase (Elim ind) = Elim (dummyInd ind)
 erase t = t
+
+clean :: STm -> STm
+clean (Pi ty tm) = Pi (clean ty) (clean tm)
+clean (Abs tm) = Abs (clean tm)
+clean (App tm1 []) = clean tm1
+clean (App tm1 args) = App (clean tm1) (clean <$> args)
+clean (Let ty tm1 tm2) = Let (clean ty) (clean tm1) (clean tm2)
+clean (Cast tm ty) = Cast (clean tm) (clean ty)
+clean (Constr ind i) = Constr ind i 
+clean (Elim ind) = Elim ind
+clean t = t
 
 precompElim :: Ind STy → Ind STy → [STm] → Int → [STm] → [STm]
 precompElim cind eind eargs i cargs =
@@ -177,7 +188,7 @@ whnf (App l r@(hr:tr)) =
                             whnf (App pat (indices ++ cargs' ++ rest))
                         _ -> App (Elim ind) (args ++ cst:rest)
                   else App (Elim ind) r
-                   
+    Cast l' _ -> whnf (App l' r)               
     l' -> App l' r
 whnf (Let _ tm1 tm2) = whnf (ESubst (Subst [tm2] Map.empty) tm1)
 whnf (Cast tm ty) = Cast (whnf tm) ty
@@ -191,7 +202,6 @@ conv tm tm' = aux (whnf tm) (whnf tm')
     aux (Ident s) (Ident s') = s == s'
     aux (Pi ty fam) (Pi ty' fam') = conv ty ty' && conv fam fam'
     aux (Abs tm) (Abs tm') = conv tm tm'
-    aux (App tm args) (App tm' args') = conv tm tm' && length args == length args' && (all (uncurry conv) $ zip args args')
     aux (App tm args) (App tm' args') = conv tm tm' && length args == length args' && (all (uncurry conv) $ zip args args')
     aux (Cast tm ty) (Cast tm' ty') = conv tm tm'
     aux (Elim ind) (Elim ind') = indName ind == indName ind'

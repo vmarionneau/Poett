@@ -36,6 +36,74 @@ csArgType arg = foldr Pi (argRes arg) (argArgs arg)
 constrType :: [STy] -> Constructor STy -> STy
 constrType pars cs = foldr Pi (csResult cs) (pars ++ (csArgType <$> csArgs cs))
 
+typeElimType :: Lvl -> Ind STy -> STy
+typeElimType lvl ind =
+  let famType = foldr Pi (U lvl) (fullArgsFrom 0) in
+  let patTypes = zipWith aux [0..] (indConstructors ind) in
+  let res =
+        foldr Pi
+        (App (Var (indicesLen + length patTypes + 1)) (Var <$> reverse [0..indicesLen - 1 + 1]))
+        (fullArgsFrom (length patTypes + 1)) in
+  foldr Pi res (pars ++ famType:patTypes)
+  where
+    pars = indParams ind
+    indices = arArgs (indArity ind)
+    parLen = length pars
+    indicesLen = length indices
+    
+    fullArgsFrom :: Int -> [STm]
+    fullArgsFrom k =
+      let parLow = k + indicesLen in
+      let parHigh = k + indicesLen + parLen - 1in
+      let inHigh = indicesLen - 1 in
+        indices ++ [App (Ident (indName ind)) $
+                    Var <$> (reverse [parLow..parHigh]
+                             ++ reverse [0..inHigh])
+                   ]
+        
+    aux :: Int -> Constructor STy -> STy
+    aux i cs =
+      let res = whnf (csResult cs) in
+      let indices =
+            if indicesLen <= 0
+            then []
+            else
+              case res of
+                App _ indcs -> drop (indParamLength ind) indcs
+                _ -> error "Didn't reduce to an application of inductive type to parameters and indices"
+      in
+      let args' = argAux i 0 (csArgs cs) in
+      let csArgs' = (\(k, _) -> Var $ length args' - 1 - k) <$> filter (\ (_,(_, b)) -> b) (zip [0..] args') in
+      let tyRes = App (Var (i + length args')) (indices ++ [App (Constr ind i) csArgs']) in
+      foldr Pi tyRes (fst <$> args')
+
+    argAux _ _ [] = []
+    argAux i j (arg:args) =
+      if argRec arg
+      then
+        let absTys = argArgs arg in
+        let res = whnf (argRes arg) in
+        let indices =
+              if indicesLen <= 0
+              then []
+              else
+                case res of
+                  App _ indcs -> drop (indParamLength ind) indcs
+                  _ -> error "Didn't reduce to an application of inductive type to parameters and indices"
+        in 
+        let tyRes = App (Var (i + j + length absTys + 1)) (indices ++ [Var 0]) in
+        (csArgType arg, True):(foldr Pi tyRes absTys, False):argAux i (j + 2) args
+      else (csArgType arg, True):argAux i (j + 1) args
+
+propElimType :: Lvl -> Ind STy -> STy
+propElimType _ _ = error "Prop eliminator types not yet defined"
+
+elimType :: Lvl -> Ind STy -> STy
+elimType lvl ind =
+  case arSort (indArity ind) of
+    Prop -> propElimType lvl ind
+    Type _ -> typeElimType lvl ind
+
 lctxToSubst :: LocalCtx -> [STm]
 lctxToSubst = map (\ (i, entry) -> case (entryDef entry) of
                                      Nothing -> Var i
@@ -83,20 +151,21 @@ infer_ ctx (Cast tm ty) = check ctx tm ty >> pure ty
 infer_ ctx (Constr ind i) =
   maybeEither ("Unknown constructor of " ++ indName ind ++ " : " ++ show i)
   (constrType (indParams ind) <$> indConstructors ind `atMay` i)
-infer_ ctx (Elim ind) = Left "Eliminators yet to be implemented"
-infer_ _ _ = Left "Can't infer abstractions"
+infer_ ctx (Elim ind) = pure $ elimType (Type 0) ind
+infer_ _ tm@(ESubst _ _) = Left $ "infer_ was called with an explicit substitution, got : " ++ show tm
+infer_ _ tm@(Abs _) = Left $ "Can't infer abstractions, got :" ++ show tm
         
 check :: Ctx -> STm -> STy -> Either String ()
 check ctx tm ty =
   do
     u <- infer ctx ty
-    asU u
+    asU (whnf u)
     check_ ctx (pushSubst tm) (whnf $ inCtx ctx ty)
     
 check_ :: Ctx -> STm -> STy -> Either String ()
 check_ ctx  (Abs tm) (Pi ty fam) =
   let ctx' = addVar ctx ty in
-    check ctx' tm ty
+    check ctx' tm fam
 check_ ctx tm@(Abs _) ty = Left (show tm ++ " is an abstraction but is expected to have type " ++ show ty)  
 check_ ctx (Let ty1 tm1 tm2) ty =
   do
@@ -109,3 +178,5 @@ check_ ctx tm ty =
     if conv ty tyinf
     then pure ()
     else Left (show tm ++ " has type " ++ show tyinf ++ " but was expected to have type " ++ show ty)
+
+testCtx = Ctx (GCtx Map.empty (Map.singleton "nat" nat)) []
