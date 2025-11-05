@@ -2,58 +2,217 @@
 
 module Ctx (module Ctx) where
 
-import WHNF (STm, STy)
+import Name
+import Term
 import Ind
 import qualified Data.Map as Map
+import Data.Map (( !? ))
 import Data.Maybe (isJust, isNothing)
+import Data.List (find, isSubsequenceOf)
 
-data LocalCtxEntry = LocalCtxEntry {entryType :: STy,  entryDef :: Maybe STm}
+data LocalCtxEntry = LocalCtxEntry {entryName :: Name, entryType :: Ty, entryDef :: Maybe Tm}
   deriving (Eq, Show)
 
 type LocalCtx = [LocalCtxEntry]
 
-type DefCtx = Map.Map String (STm, STy)
-type IndCtx = Map.Map String (Ind STy)
+data Def = Def {defName :: String, defType :: Ty, defBody :: Tm}
+  deriving (Eq, Show)
+
+type DefCtx = Map.Map String Def
+type IndCtx = Map.Map String (Ind Ty)
 
 data GlobalCtx = GCtx {defCtx :: DefCtx, indCtx :: IndCtx}
+  deriving (Eq, Show)
 
 data Ctx = Ctx {global :: GlobalCtx, local :: LocalCtx}
+  deriving (Eq, Show)
 
-typeOfVar :: LocalCtx → Int → Maybe STy
-typeOfVar [] _ = Nothing
-typeOfVar (h : _) 0 = Just (entryType h)
-typeOfVar (_ : ctx) i = typeOfVar ctx (i - 1)
+newtype InCtx a = InCtx {runInCtx :: Ctx → Either String (Ctx, a)}
 
-addVar :: Ctx → STy → Ctx
-addVar ctx ty = ctx {local = LocalCtxEntry ty Nothing : local ctx}
+instance Functor InCtx where
+  fmap f mx = InCtx (fmap (\ (ctx, a) → (ctx, f a)) . runInCtx mx)
 
-addLocalDef :: Ctx → STm → STy → Ctx
-addLocalDef ctx tm ty = ctx {local = LocalCtxEntry ty (Just tm) : local ctx}
+instance Applicative InCtx where
+  pure x = InCtx (\ ctx → Right (ctx, x))
+                 
+  mf <*> mx = InCtx (\ ctx → case runInCtx mf ctx of
+                               Left err → Left err
+                               Right (ctx', f) → (\ (ctx'', x) → (ctx'', f x)) <$> (runInCtx mx ctx')
+                    )
+              
+instance Monad InCtx where
+  mx >>= f = InCtx (\ ctx → case runInCtx mx ctx of
+                               Left err → Left err
+                               Right (ctx', x) → runInCtx (f x) ctx'
+                   )
 
-addGlobalDef :: Ctx → String → STm → STy → Ctx
-addGlobalDef ctx name tm ty = ctx {global = (global ctx) {defCtx = Map.insert name (tm, ty) $ defCtx (global ctx)}}
+instance MonadFail InCtx where
+  fail s = InCtx (const $ Left s)
 
-lctxLookupTy :: Int → LocalCtx → Maybe STy
-lctxLookupTy _ [] = Nothing
-lctxLookupTy 0 (h:_) = Just (entryType h)
-lctxLookupTy n (_:t) = lctxLookupTy (n - 1) t
+maybeEither :: a -> Maybe b -> Either a b
+maybeEither _ (Just x) = Right x
+maybeEither y _ = Left y
 
-ctxLookupVar :: Int → Ctx → Maybe STy
-ctxLookupVar i ctx = lctxLookupTy i (local ctx)
+inCtxOfEither :: Either String a → InCtx a
+inCtxOfEither m = InCtx (\ ctx → (\ x → (ctx, x)) <$> m)
 
-lctxLookupDef :: Int -> LocalCtx → Maybe (STy, STm)
-lctxLookupDef _ [] = Nothing
-lctxLookupDef 0 (h:_) = (\ def -> (entryType h, def)) <$> entryDef h
-lctxLookupDef n (_:t) = lctxLookupDef (n - 1) t
+getCtx :: InCtx Ctx
+getCtx = InCtx (\ ctx → Right (ctx, ctx))
 
-gctxLookupDef :: String → GlobalCtx → Maybe (STy, STm)
-gctxLookupDef s ctx = Map.lookup s (defCtx ctx)
+getLocalCtx :: InCtx LocalCtx
+getLocalCtx = local <$> getCtx
 
-ctxLookupDef :: String -> Ctx -> Maybe (STm, STy)
-ctxLookupDef s ctx = gctxLookupDef s (global ctx)
+getGlobalCtx :: InCtx GlobalCtx
+getGlobalCtx = global <$> getCtx
 
-gctxLookupInd :: String -> GlobalCtx -> Maybe (Ind STy)
-gctxLookupInd s ctx = Map.lookup s (indCtx ctx)
+getDefCtx :: InCtx DefCtx
+getDefCtx = defCtx <$> getGlobalCtx
 
-ctxLookupInd :: String -> Ctx -> Maybe (Ind STy)
-ctxLookupInd s ctx = gctxLookupInd s (global ctx)
+getIndCtx :: InCtx IndCtx
+getIndCtx = indCtx <$> getGlobalCtx
+
+setCtx :: Ctx → InCtx ()
+setCtx ctx = InCtx (const $ Right (ctx, ()))
+
+setLocalCtx :: LocalCtx → InCtx ()
+setLocalCtx lctx =
+  do ctx ← getCtx
+     setCtx $ ctx { local = lctx }
+
+setGlobalCtx :: GlobalCtx → InCtx ()
+setGlobalCtx gctx =
+  do ctx ← getCtx
+     setCtx $ ctx { global = gctx }
+
+setDefCtx :: DefCtx → InCtx ()
+setDefCtx defs =
+  do gctx ← getGlobalCtx
+     setGlobalCtx $ gctx { defCtx = defs }
+
+setIndCtx :: IndCtx → InCtx ()
+setIndCtx inds =
+  do gctx ← getGlobalCtx
+     setGlobalCtx $ gctx { indCtx = inds }
+
+getLocal :: Name → InCtx LocalCtxEntry
+getLocal name =
+  do
+    lctx ← getLocalCtx
+    case find (( == name ) . entryName) lctx of
+      Nothing → fail $ "Unbound variable" ++ show name
+      Just entry → pure entry
+
+getDef :: String → InCtx Def
+getDef s =
+  do
+    defs ← getDefCtx
+    case defs !? s of
+      Nothing → fail $ "Not defined : " ++ s
+      Just def → pure def
+
+getInd :: String → InCtx (Ind Ty)
+getInd s =
+  do
+    inds ← getIndCtx
+    case inds !? s of
+      Nothing → fail $ "Not defined : " ++ s
+      Just ind → pure ind
+
+getConstr :: Ind Ty → Int → InCtx (Constructor Ty)
+getConstr ind i = inCtxOfEither $
+                  maybeEither
+                  ("Unbound constructor for inductive " ++
+                  (indName ind) ++ " : " ++ show i) $
+                  (indConstructors ind) `atMay` i
+
+getIndConstr :: String → Int → InCtx (Constructor Ty)
+getIndConstr nameInd i =
+  do
+    ind ← getInd nameInd
+    getConstr ind i
+    
+freshName :: Name → InCtx Name
+freshName name =
+  do lctx ← getLocalCtx
+     pure $ fresh name $ entryName <$> lctx
+
+addVar :: Name → Ty → InCtx Name
+addVar name ty =
+  do name' ← freshName name
+     lctx ← getLocalCtx
+     setLocalCtx $ LocalCtxEntry name' ty Nothing : lctx
+     pure name'
+
+addVars :: [(Name, Ty)] → InCtx [Name]
+addVars vars =
+  do entries ← mapM (\ (name, ty) →
+                        (freshName name) >>=
+                        \ name' →
+                          pure (LocalCtxEntry name' ty Nothing)
+                    ) vars
+     lctx ← getLocalCtx
+     setLocalCtx $ entries ++ lctx
+     pure $ entryName <$> entries
+
+addLocal :: Name → Ty → Tm → InCtx Name
+addLocal name ty tm =
+  do name' ← freshName name
+     lctx ← getLocalCtx
+     setLocalCtx $ LocalCtxEntry name' ty (Just tm) : lctx
+     pure name'
+
+addLocals :: [(Name, Ty, Tm)] → InCtx [Name]
+addLocals decls =
+  do entries ← mapM (\ (name, ty, tm) →
+                       (freshName name) >>=
+                       \ name' →
+                         pure (LocalCtxEntry name' ty (Just tm))
+                    ) decls
+     lctx ← getLocalCtx
+     setLocalCtx $ entries ++ lctx
+     pure $ entryName <$> entries
+
+removeDecl :: Name → InCtx ()
+removeDecl name =
+  do
+    lctx ← getLocalCtx
+    if any (\ entry → entryName entry == name) lctx
+    then setLocalCtx $ filter (\ entry → entryName entry /= name) lctx
+    else fail $ "Can't remove bound variable " ++ show name ++ " it is not in context."
+
+removeDecls :: [Name] → InCtx ()
+removeDecls names =
+  do
+    lctx ← getLocalCtx
+    let lctxNames = entryName <$> lctx
+    if all (flip elem lctxNames) names
+    then setLocalCtx $ filter (\ entry → not $ entryName entry `elem` names) lctx
+    else fail $ "Can't remove bound variables " ++ intercalate "," (show <$> names) ++ " some (or all) of them are not in context."
+
+closeProducts :: [Name] → Ty → InCtx Ty
+closeProducts names ty =
+  do
+    lctx ← getLocalCtx
+    let (vars, lctx') = span (\ entry → entryName entry `elem` names) lctx
+    let names' = entryName <$> vars
+    let ty' = abstract names' ty
+    setLocalCtx lctx'
+    pure $ foldl (flip (uncurry Pi)) ty' $ (\ entry → (entryName entry, entryType entry)) <$> vars
+
+closeAbs :: [Name] → Tm → InCtx Tm
+closeAbs names tm =
+  do
+    lctx ← getLocalCtx
+    let (vars, lctx') = span (\ entry → entryName entry `elem` names) lctx
+    let names' = entryName <$> vars
+    let tm' = abstract names' tm
+    setLocalCtx lctx'
+    pure $ foldl (flip (uncurry Abs)) tm' $ (\ entry → (entryName entry, entryType entry)) <$> vars
+
+isolate :: InCtx a → InCtx a
+isolate m =
+  do
+    ctx ← getCtx
+    x ← m
+    setCtx ctx
+    pure x

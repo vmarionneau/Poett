@@ -1,19 +1,20 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Ind (module Ind) where
+import Name
 
 data Lvl = Type Int | Prop
   deriving (Eq, Show)
 
 data Arity ty = Arity
-  { arArgs :: [ty],
+  { arArgs :: [(Name, ty)],
     arSort :: Lvl
   }
   deriving (Eq, Show)
 
 data CsArg ty = CsArg
   {
-    argArgs :: [ty],
+    argArgs :: [(Name, ty)],
     argRes :: ty,
     argRec :: Bool
   }
@@ -21,27 +22,30 @@ data CsArg ty = CsArg
 
 data Constructor ty = Constructor
   { csName :: String,
-    csArgs :: [CsArg ty],
-    csResult :: ty
+    csArgs :: [(Name, CsArg ty)],
+    csResIndices :: [ty]
   }
   deriving (Eq, Show)
 
 data Ind ty = Ind
   { indName :: String,
-    indParams :: [ty],
+    indParams :: [(Name, ty)],
     indArity :: Arity ty,
     indConstructors :: [Constructor ty]
   }
   deriving (Eq, Show)
 
+indIndices :: Ind ty → [(Name, ty)]
+indIndices = arArgs . indArity
+
 csArgsLength :: Constructor ty → Int
-csArgsLength cs = length (csArgs cs)
+csArgsLength = length . csArgs
 
 indParamLength :: Ind ty → Int
-indParamLength ind = length (indParams ind)
+indParamLength = length . indParams 
 
 indIndicesLength :: Ind ty → Int
-indIndicesLength ind = length (arArgs $ indArity ind)
+indIndicesLength = length . indIndices
 
 indArgLength :: Ind ty → Int
 indArgLength ind = indParamLength ind + indIndicesLength ind

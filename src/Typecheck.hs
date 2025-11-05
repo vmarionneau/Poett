@@ -1,5 +1,6 @@
 module Typecheck (module Typecheck) where
 
+{-
 import WHNF
 import Ctx
 import Ind
@@ -182,3 +183,4 @@ testCtx =
   (GCtx Map.empty
    (Map.fromList [("nat", nat), ("list", list), ("eq", eq)]))
   []
+-}

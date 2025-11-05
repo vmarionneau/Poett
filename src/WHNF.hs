@@ -2,6 +2,12 @@
 
 module WHNF (module WHNF) where
 
+import Name
+import Ind
+import Term
+import Ctx
+
+{-
 {- import qualified Term as T (Tm, Ty) -}
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -28,7 +34,7 @@ data SubstV
   | Comp SubstV SubstV
   deriving Eq
 
-data Subst = Subst { vars :: SubstV, idents :: Map.Map String STm }
+ data Subst = Subst { vars :: SubstV, idents :: Map.Map String STm }
   deriving Eq
 
 data STm
@@ -89,10 +95,6 @@ substFromList = foldr Bind Empty
 
 substSingleton :: STm -> SubstV
 substSingleton tm = Bind tm Empty
-
-asApp :: STm -> (STm, [STm])
-asApp (App tm args) = (tm, args)
-asApp tm = (tm, [])
 
 bump :: Int → Int → STm → STm
 bump n k tm =
@@ -191,34 +193,49 @@ precompElim lvl cind eind eargs i cargs =
         let body = App (Elim lvl eind) (eargs' ++ indices ++ [App ca vars]) in
             [ca, foldr Abs body absTys]
       else [ca]
-      
-whnf :: STm → STm
-whnf s@(ESubst _ _) = whnf (pushSubst s)
-whnf (App l []) = whnf l
-whnf (App l r@(hr:tr)) = 
-  case whnf l of
-    Abs _ tm -> whnf (App (ESubst (Subst (substSingleton hr) Map.empty) tm) tr)
-    App l' r' -> whnf (App l' (r' ++ r)) 
-    Elim lvl ind -> let len = elimArgLength ind in
-                  if length r >= len
-                  then
-                    let args = take (len - 1) r in
-                    let indices = drop (indParamLength ind + 1 + length (indConstructors ind)) args in
-                    let cst = whnf (r !! (len - 1)) in
-                    let rest = drop len r in
-                      case asApp cst of
-                        (Constr ind' i, cargs) ->
-                          let pat = args !! (indParamLength ind + 1 + i) in
-                          let cargs' = precompElim lvl ind' ind args i cargs in
-                            whnf (App pat (indices ++ cargs' ++ rest))
-                        _ -> App (Elim lvl ind) (args ++ cst:rest)
-                  else App (Elim lvl ind) r
-    Cast l' _ -> whnf (App l' r)               
-    l' -> App l' r
-whnf (Let _ tm1 tm2) = whnf (ESubst (Subst (substSingleton tm2) Map.empty) tm1)
-whnf (Cast tm ty) = Cast (whnf tm) ty
-whnf t = t
 
+-}
+
+asApp :: Tm -> (Tm, [Tm])
+asApp (App tm args) = (tm, args)
+asApp tm = (tm, [])
+
+-- Pop at most 'depth' abstractions from a term
+unravelAbs :: Int → Tm → ([(Name, Ty)], Tm)
+unravelAbs 0 tm = ([], tm)
+unravelAbs depth (Abs name ty tm) =
+  let (names, tm') = unravelAbs (depth - 1) tm
+  in ((name,ty):names, tm)
+unravelAbs _ tm = ([], tm)
+
+whnf :: Tm → InCtx Tm
+whnf (App l []) = whnf l
+whnf (App l r@(hr:tr)) =
+  do
+    l' ← whnf l
+    case l' of
+      Abs _ ty tm →
+        let (names, tm) = unravelAbs (length r) l' in
+        let args = take (length names) r in
+        let rem = drop (length names) r in
+          whnf (App (instantiate args tm) rem)
+      App l' r' → whnf (App l' (r' ++ r)) 
+      Elim lvl nameInd →
+        do
+          { ind ← getInd nameInd
+          ; let len = elimArgLength ind
+          ; if length r >= len
+            then fail "Not yet implemented : Reduction of eliminators"
+            else pure $ App (Elim lvl nameInd) r
+          }
+      Cast l' _ -> whnf (App l' r)               
+      l' -> pure $ App l' r
+whnf (Let _ _ tm1 tm2) = whnf (instantiate [tm1] tm2)
+whnf (Cast tm ty) =
+  do tm' ← whnf tm
+     pure $ Cast tm' ty
+whnf t = pure t
+{-
 hnf :: STm -> STm
 hnf tm = aux (whnf tm)
   where
@@ -346,3 +363,4 @@ eqAr = Arity [Var 1] (Type 0)
 eq :: Ind STy
 eq = Ind "eq" [U (Type 0), Var 0] eqAr [refl]
 
+-}
