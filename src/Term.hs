@@ -27,18 +27,27 @@ atMay [] _ = Nothing
 atMay (h:_) 0 = Just h
 atMay (_:t) n = atMay t (n - 1)
 
+instantiateOff :: Int → [Tm] → Tm → Tm
+instantiateOff off vals (BVar i) =
+  if i < off
+  then BVar i
+  else fromMaybe (BVar i) $ vals `atMay` (i - off)
+instantiateOff off vals (Pi name ty fam) = Pi name (instantiateOff off vals ty) (instantiateOff (off + 1) vals fam)
+instantiateOff off vals (Abs name ty tm) = Abs name (instantiateOff off vals ty) (instantiateOff (off + 1) vals tm)
+instantiateOff off vals (App tm args) = App (instantiateOff off vals tm) (instantiateOff off vals <$> args)
+instantiateOff off vals (Let name ty tm1 tm2) = Let name (instantiateOff off vals ty) (instantiateOff off vals tm1) (instantiateOff (off + 1) vals tm2)
+instantiateOff off vals (Cast tm ty) = Cast (instantiateOff off vals tm) (instantiateOff off vals ty)
+instantiateOff _ _ tm = tm
+
+
 instantiate :: [Tm] → Tm → Tm
-instantiate vals = aux 0
+instantiate = instantiateOff 0
+  
+instantiateTele :: [Tm] → [(Name, Ty)] → [(Name, Ty)]
+instantiateTele vals = aux 0
   where
-    aux off  (BVar i) = if i < off
-                        then BVar i
-                        else fromMaybe (BVar i) $ vals `atMay` (i - off)
-    aux off (Pi name ty fam) = Pi name (aux off ty) (aux (off + 1) fam)
-    aux off (Abs name ty tm) = Abs name (aux off ty) (aux (off + 1) tm)
-    aux off (App tm args) = App (aux off tm) (aux off <$> args)
-    aux off (Let name ty tm1 tm2) = Let name (aux off ty) (aux off tm1) (aux (off + 1) tm2)
-    aux off (Cast tm ty) = Cast (aux off tm) (aux off ty)
-    aux _ tm = tm
+    aux _ [] = []
+    aux off ((name,ty):tys) = (name, instantiateOff off vals ty) : aux (off + 1) tys  
 
 abstract :: [Name] → Tm → Tm
 abstract names = aux 0

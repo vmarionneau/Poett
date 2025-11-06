@@ -196,10 +196,6 @@ precompElim lvl cind eind eargs i cargs =
 
 -}
 
-asApp :: Tm -> (Tm, [Tm])
-asApp (App tm args) = (tm, args)
-asApp tm = (tm, [])
-
 -- Pop at most 'depth' abstractions from a term
 unravelAbs :: Int → Tm → ([(Name, Ty)], Tm)
 unravelAbs 0 tm = ([], tm)

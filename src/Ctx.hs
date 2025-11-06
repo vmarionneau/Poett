@@ -8,12 +8,16 @@ import Ind
 import qualified Data.Map as Map
 import Data.Map (( !? ))
 import Data.Maybe (isJust, isNothing)
-import Data.List (find, isSubsequenceOf)
+import Data.List (find, partition)
+import Control.Monad (foldM)
 
 data LocalCtxEntry = LocalCtxEntry {entryName :: Name, entryType :: Ty, entryDef :: Maybe Tm}
   deriving (Eq, Show)
 
 type LocalCtx = [LocalCtxEntry]
+
+emptyLocalCtx :: LocalCtx
+emptyLocalCtx = []
 
 data Def = Def {defName :: String, defType :: Ty, defBody :: Tm}
   deriving (Eq, Show)
@@ -21,11 +25,23 @@ data Def = Def {defName :: String, defType :: Ty, defBody :: Tm}
 type DefCtx = Map.Map String Def
 type IndCtx = Map.Map String (Ind Ty)
 
+emptyDefCtx :: DefCtx
+emptyDefCtx = Map.empty
+
+emptyIndCtx :: IndCtx
+emptyIndCtx = Map.empty
+
 data GlobalCtx = GCtx {defCtx :: DefCtx, indCtx :: IndCtx}
   deriving (Eq, Show)
 
+emptyGlobalCtx :: GlobalCtx
+emptyGlobalCtx = GCtx emptyDefCtx emptyIndCtx
+
 data Ctx = Ctx {global :: GlobalCtx, local :: LocalCtx}
   deriving (Eq, Show)
+
+emptyCtx :: Ctx
+emptyCtx = Ctx emptyGlobalCtx emptyLocalCtx
 
 newtype InCtx a = InCtx {runInCtx :: Ctx → Either String (Ctx, a)}
 
@@ -154,6 +170,15 @@ addVars vars =
      setLocalCtx $ entries ++ lctx
      pure $ entryName <$> entries
 
+addTelescope :: [(Name, Ty)] → InCtx [Name]
+addTelescope tel =
+  foldM (\ names (name, ty) →
+           do
+             let ty' = instantiate (FVar <$> names) ty
+             addVar name ty'
+             pure (name:names)
+        ) [] tel
+
 addLocal :: Name → Ty → Tm → InCtx Name
 addLocal name ty tm =
   do name' ← freshName name
@@ -193,21 +218,19 @@ closeProducts :: [Name] → Ty → InCtx Ty
 closeProducts names ty =
   do
     lctx ← getLocalCtx
-    let (vars, lctx') = span (\ entry → entryName entry `elem` names) lctx
+    let (vars, lctx') = partition (\ entry → entryName entry `elem` names) lctx
     let names' = entryName <$> vars
-    let ty' = abstract names' ty
     setLocalCtx lctx'
-    pure $ foldl (flip (uncurry Pi)) ty' $ (\ entry → (entryName entry, entryType entry)) <$> vars
+    pure $ foldl (\ acc entry → Pi (entryName entry) (entryType entry) (abstract [entryName entry] acc)) ty vars
 
 closeAbs :: [Name] → Tm → InCtx Tm
 closeAbs names tm =
   do
     lctx ← getLocalCtx
-    let (vars, lctx') = span (\ entry → entryName entry `elem` names) lctx
+    let (vars, lctx') = partition (\ entry → entryName entry `elem` names) lctx
     let names' = entryName <$> vars
-    let tm' = abstract names' tm
     setLocalCtx lctx'
-    pure $ foldl (flip (uncurry Abs)) tm' $ (\ entry → (entryName entry, entryType entry)) <$> vars
+    pure $ foldl (\ acc entry → Pi (entryName entry) (entryType entry) (abstract [entryName entry] acc)) tm vars
 
 isolate :: InCtx a → InCtx a
 isolate m =
