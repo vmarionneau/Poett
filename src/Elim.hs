@@ -77,10 +77,17 @@ constrMotive lvl ind paramNames famName i =
             else aux args (nonRec:csArgNames) (nonRec:allArgNames)
 
 elimType :: String → Lvl → InCtx Ty
-elimType _ Prop = fail "TODO : Implement Prop elimination"
 elimType nameInd lvl =
   do
     ind ← getInd nameInd
+    if arSort (indArity ind) == Prop &&
+       lvl /= Prop
+      then fail "Can't eliminate out of Prop into anything other than Prop (subsingleton elimination is WIP)"
+      else elimType' ind lvl
+    
+elimType' :: Ind Ty → Lvl → InCtx Ty
+elimType' ind lvl =
+  do
     let params = indParams ind
     paramNames ← addTelescope params
     famTy ← elimFam lvl ind paramNames
@@ -98,11 +105,10 @@ elimType nameInd lvl =
       (famArgName:indicesNames ++ motiveNames ++ famName:paramNames)
       (App (FVar famName) $ FVar <$> (indicesNames ++ [famArgName]))
 
-constrElimRule :: String → Lvl → Int → InCtx Tm
-constrElimRule nameInd lvl i =
+constrElimRule :: Ind Ty → Lvl → Int → InCtx Tm
+constrElimRule ind lvl i =
   isolate $
   do
-    ind ← getInd nameInd
     cst ← getConstr ind i
     {- elim A0 A1 A2 ... T m0 m1 m2 ... I0 I1 I2 ... (C_i A0 A1 A2 ... x0 x1 x2 ...)
        --> m_i I0 I1 I2 ...
@@ -121,13 +127,13 @@ constrElimRule nameInd lvl i =
     motiveNames ← addVars motives
     let args = csArgs cst
     motive ← inCtxOfMaybe ("Unbound constructor for inductive " ++ indName ind ++ " : " ++ show i) $ (reverse motiveNames) `atMay` i
-    (csArgNames, motiveArgs) ← aux ind paramNames famName motiveNames args [] []
+    (csArgNames, motiveArgs) ← aux paramNames famName motiveNames args [] []
     pure $ abstract (csArgNames ++ motiveNames ++ famName:paramNames) (App (FVar motive) (reverse motiveArgs))
       where
-        aux :: Ind Ty → [Name] → Name → [Name] → [(Name, CsArg Ty)] → [Name] → [Tm] → InCtx ([Name], [Tm])
-        aux _ _ _ _ [] csArgNames tms = pure (csArgNames, tms)
-        aux ind paramNames famName motiveNames ((argName, arg):args) csArgNames tms =
-          let aux' = aux ind paramNames famName motiveNames in
+        aux :: [Name] → Name → [Name] → [(Name, CsArg Ty)] → [Name] → [Tm] → InCtx ([Name], [Tm])
+        aux _ _ _ [] csArgNames tms = pure (csArgNames, tms)
+        aux paramNames famName motiveNames ((argName, arg):args) csArgNames tms =
+          let aux' = aux paramNames famName motiveNames in
           do
             nonRecType ← csArgType lvl ind paramNames csArgNames arg
             nonRec ← addVar argName nonRecType
