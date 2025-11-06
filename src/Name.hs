@@ -17,3 +17,6 @@ freshOf name existing = Name name (if indices == [] then -1 else 1 + maximum ind
 
 fresh :: Name → [Name] → Name
 fresh = freshOf . nameString
+
+named :: String → Name
+named s = Name s (-1)

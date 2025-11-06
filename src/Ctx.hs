@@ -121,6 +121,14 @@ getLocal name =
       Nothing → fail $ "Unbound variable" ++ show name
       Just entry → pure entry
 
+isDef :: String → InCtx Bool
+isDef s =
+  do
+    defs ← getDefCtx
+    case defs !? s of
+      Nothing → pure False
+      Just _ → pure True
+
 getDef :: String → InCtx Def
 getDef s =
   do
@@ -128,6 +136,14 @@ getDef s =
     case defs !? s of
       Nothing → fail $ "Not defined : " ++ s
       Just def → pure def
+
+isInd :: String → InCtx Bool
+isInd s =
+  do
+    inds ← getIndCtx
+    case inds !? s of
+      Nothing → pure False
+      Just ind → pure True
 
 getInd :: String → InCtx (Ind Ty)
 getInd s =

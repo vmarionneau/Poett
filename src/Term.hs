@@ -79,7 +79,7 @@ instance Show Tm where
   show (Cast tm ty) = "(" ++ show tm ++ " : " ++ show ty ++ ")"
   show (Constr ind i) ="cs{" ++ ind ++ "; " ++ show i ++ "}"
   show (Elim lvl ind) = "elim{" ++ ind ++ " ▸ " ++ show lvl ++ "}"
-  show (App tm args) = show tm ++ " " ++ (intercalate " " $ bracketArg <$> args)
+  show (App tm args) = bracketArg tm ++ " " ++ (intercalate " " $ bracketArg <$> args)
     where
       bracketArg :: Tm -> String
       bracketArg tm@(Abs _ _ _) = "(" ++ show tm ++ ")"

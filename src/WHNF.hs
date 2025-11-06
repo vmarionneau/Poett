@@ -13,7 +13,7 @@ unravelAbs :: Int → Tm → ([(Name, Ty)], Tm)
 unravelAbs 0 tm = ([], tm)
 unravelAbs depth (Abs name ty tm) =
   let (names, tm') = unravelAbs (depth - 1) tm
-  in ((name,ty):names, tm)
+  in ((name,ty):names, tm')
 unravelAbs _ tm = ([], tm)
 
 whnf :: Tm → InCtx Tm
@@ -26,7 +26,7 @@ whnf (App l r@(hr:tr)) =
         let (names, tm) = unravelAbs (length r) l' in
         let args = take (length names) r in
         let rem = drop (length names) r in
-          whnf (App (instantiate args tm) rem)
+          whnf (App (instantiate (reverse args) tm) rem)
       App l' r' → whnf (App l' (r' ++ r)) 
       Elim lvl nameInd →
         do
@@ -47,7 +47,7 @@ whnf (App l r@(hr:tr)) =
                           { constr ← getConstr ind i
                           ; rule ← constrElimRule ind lvl i
                           ; if length cargs == indParamLength ind + length (csArgs constr)
-                            then pure $ instantiate (args ++ drop (indParamLength ind) cargs) rule
+                            then whnf $ instantiate ((reverse $ drop (indParamLength ind) cargs) ++ reverse args) rule
                             else pure stuckRes  
                           }
                       else pure stuckRes
@@ -67,6 +67,12 @@ whnf (FVar name) =
     case entryDef entry of
       Nothing → pure $ FVar name
       Just def → whnf def
+whnf (Ident s) =
+  do
+    bdef ← isDef s
+    if bdef
+      then getDef s >>= (whnf . defBody)
+      else pure $ Ident s
 whnf t = pure t
 
 hnf :: Tm -> InCtx Tm
