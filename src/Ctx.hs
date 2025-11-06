@@ -72,6 +72,9 @@ maybeEither y _ = Left y
 inCtxOfEither :: Either String a → InCtx a
 inCtxOfEither m = InCtx (\ ctx → (\ x → (ctx, x)) <$> m)
 
+inCtxOfMaybe :: String → Maybe a → InCtx a
+inCtxOfMaybe s m = inCtxOfEither $ maybeEither s m
+
 getCtx :: InCtx Ctx
 getCtx = InCtx (\ ctx → Right (ctx, ctx))
 
