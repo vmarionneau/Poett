@@ -22,7 +22,7 @@ whnf (App l r@(hr:tr)) =
   do
     l' ← whnf l
     case l' of
-      Abs _ ty tm →
+      Abs _ _ _ →
         let (names, tm) = unravelAbs (length r) l' in
         let args = take (length names) r in
         let rem = drop (length names) r in
@@ -47,7 +47,7 @@ whnf (App l r@(hr:tr)) =
                           { constr ← getConstr ind i
                           ; rule ← constrElimRule ind lvl i
                           ; if length cargs == indParamLength ind + length (csArgs constr)
-                            then whnf $ instantiate ((reverse $ drop (indParamLength ind) cargs) ++ reverse args) rule
+                            then whnf $ App (instantiate ((reverse $ drop (indParamLength ind) cargs) ++ reverse args) rule) (drop len r)
                             else pure stuckRes  
                           }
                       else pure stuckRes
@@ -106,12 +106,12 @@ nf tm = whnf tm >>= aux
       do
         ty' ← nf ty
         fam' ← nf fam
-        pure $ Pi name ty' fam
+        pure $ Pi name ty' fam'
     aux (Abs name ty tm) =
       do
         ty' ← nf ty
         tm' ← nf tm
-        pure $ Abs name ty' tm
+        pure $ Abs name ty' tm'
     aux (App tm args) =
       do
         tm' ← nf tm

@@ -29,7 +29,6 @@ library
       Elim
       Ind
       Name
-      NbE
       Term
       Typecheck
       WHNF

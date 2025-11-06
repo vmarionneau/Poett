@@ -251,6 +251,14 @@ closeAbs names tm =
     setLocalCtx lctx'
     pure $ foldl (\ acc entry → Pi (entryName entry) (entryType entry) (abstract [entryName entry] acc)) tm vars
 
+unfoldLocal :: Name → Tm → InCtx Tm
+unfoldLocal name tm =
+  do
+    entry ← getLocal name
+    case entryDef entry of
+      Nothing → fail $ "Not a let variable " ++ show name
+      Just def → removeDecl name >> (pure $ substitute [(name, def)] tm)
+
 isolate :: InCtx a → InCtx a
 isolate m =
   do
