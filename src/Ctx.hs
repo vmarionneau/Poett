@@ -118,7 +118,8 @@ getLocal name =
   do
     lctx ← getLocalCtx
     case find (( == name ) . entryName) lctx of
-      Nothing → fail $ "Unbound variable" ++ show name
+      Nothing → fail $ "Unbound variable : " ++ show name
+                ++ "\nKnown : " ++ show lctx
       Just entry → pure entry
 
 isDef :: String → InCtx Bool
@@ -194,8 +195,8 @@ addTelescope tel =
   foldM (\ names (name, ty) →
            do
              let ty' = instantiate (FVar <$> names) ty
-             addVar name ty'
-             pure (name:names)
+             name' ← addVar name ty'
+             pure (name':names)
         ) [] tel
 
 addLocal :: Name → Ty → Tm → InCtx Name

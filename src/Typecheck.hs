@@ -111,7 +111,11 @@ infer (Constr nameInd i) =
   do
     ind ← getInd nameInd
     constrType ind i
-infer (Elim lvl nameInd) = elimType nameInd lvl
+infer (Elim lvl nameInd) =
+  do
+    ind ← getInd nameInd
+    checkElim ind lvl
+    elimType ind lvl
 infer (BVar _) = fail "Can't infer type of bound variables, convert them to free variables first"
     
 check :: Tm → Ty → InCtx ()
@@ -124,3 +128,45 @@ check tm ty =
     if b
     then pure ()
     else fail (show tm ++ " has type " ++ show tyinf ++ " but was expected to have type " ++ show ty)
+
+checkElim :: Ind Ty → Lvl → InCtx ()
+checkElim ind lvl =
+  if arSort (indArity ind) /= Prop || lvl == Prop
+  then pure ()
+  else
+    let msg = "Can't eliminate from Prop into " ++ show lvl ++ " for types not meeting the subsingleton criterion" in
+      case indConstructors ind of
+        [] → pure ()
+        [cst] → isolate $
+               do
+                 { let params = indParams ind
+                 ; paramNames ← addTelescope params
+                 ; let args = csArgs cst
+                 ; argNames ← aux paramNames (csArgs cst) []
+                 ; let retIndices = instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst
+                 ; normIndices ← mapM whnf retIndices
+                 ; mapM (\ name → 
+                           do
+                             { ty ← infer (FVar name)
+                             -- Π[y : A].Π[lt : R 0 x].Acc A R 1 
+                             ; u ← infer ty
+                             ; lvl ← whnf u >>= asU
+                             ; if lvl == Prop
+                               then pure ()
+                               else if FVar name `elem` normIndices then pure ()
+                               else fail msg
+                             }
+                        ) argNames
+                 ; pure ()
+                 }
+        _ → fail msg
+  where
+    aux :: [Name] → [(Name, CsArg Ty)] → [Name] → InCtx [Name]
+    aux _ [] csArgNames = pure csArgNames
+    aux paramNames ((argName, arg):args) csArgNames =
+      do
+        argType ← csArgType ind paramNames csArgNames arg
+        argName' ← addVar argName argType
+        aux paramNames args (argName':csArgNames)
+
+    

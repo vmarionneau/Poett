@@ -76,17 +76,8 @@ constrMotive ind paramNames famName i =
                 }
             else aux args (nonRec:csArgNames) (nonRec:allArgNames)
 
-elimType :: String → Lvl → InCtx Ty
-elimType nameInd lvl =
-  do
-    ind ← getInd nameInd
-    if arSort (indArity ind) == Prop &&
-       lvl /= Prop
-      then fail "Can't eliminate out of Prop into anything other than Prop (subsingleton elimination is WIP)"
-      else elimType' ind lvl
-    
-elimType' :: Ind Ty → Lvl → InCtx Ty
-elimType' ind lvl =
+elimType :: Ind Ty → Lvl → InCtx Ty
+elimType ind lvl =
   do
     let params = indParams ind
     paramNames ← addTelescope params
