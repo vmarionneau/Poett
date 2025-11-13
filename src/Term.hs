@@ -2,9 +2,11 @@
 
 module Term (module Term) where
 import Name
-import Ind
 import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
+
+data Lvl = Type Int | Prop
+  deriving (Eq, Show)
 
 data Tm
   = FVar Name

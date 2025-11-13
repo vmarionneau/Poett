@@ -8,7 +8,7 @@ import Ind
 import qualified Data.Map as Map
 import Data.Map (( !? ))
 import Data.Maybe (isJust, isNothing)
-import Data.List (find, partition)
+import Data.List (find, partition, elemIndex)
 import Control.Monad (foldM)
 
 data LocalCtxEntry = LocalCtxEntry {entryName :: Name, entryType :: Ty, entryDef :: Maybe Tm}
@@ -65,7 +65,15 @@ instance Monad InCtx where
 instance MonadFail InCtx where
   fail s = InCtx (const $ Left s)
 
-maybeEither :: a -> Maybe b -> Either a b
+firstJust :: (a → Maybe b) → [a] → Maybe b
+firstJust _ [] = Nothing
+firstJust p (h:t) =
+  let res = p h in
+    case res of
+      Just _ → res
+      _ → firstJust p t
+
+maybeEither :: a → Maybe b → Either a b
 maybeEither _ (Just x) = Right x
 maybeEither y _ = Left y
 
@@ -146,6 +154,19 @@ isInd s =
       Nothing → pure False
       Just ind → pure True
 
+isConstr :: String → InCtx Bool
+isConstr s =
+  do
+    inds ← getIndCtx
+    pure $ any (any ((== s) . csName) . indConstructors) inds
+
+asConstr :: String → InCtx (String, Int)
+asConstr s =
+  do
+    inds ← getIndCtx
+    inCtxOfMaybe ("Not a constructor of an inductive type : " ++ s)
+      $ firstJust (\ (nameInd, ind) → elemIndex s (csName <$> indConstructors ind) >>= \ i → pure (nameInd, i)) (Map.toList inds)
+    
 getInd :: String → InCtx (Ind Ty)
 getInd s =
   do

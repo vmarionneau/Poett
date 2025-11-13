@@ -2,9 +2,7 @@
 
 module Ind (module Ind) where
 import Name
-
-data Lvl = Type Int | Prop
-  deriving (Eq, Show)
+import Term
 
 data Arity ty = Arity
   { arArgs :: [(Name, ty)],
