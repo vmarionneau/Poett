@@ -6,7 +6,10 @@ import Name
 import Term
 import Ind
 import Ctx
+import WHNF
+import Typecheck
 import qualified Control.Monad.Reader as R
+import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
 
@@ -18,6 +21,7 @@ data PTm
   | PAbs String PTy PTm
   | PApp PTm [PTm]
   | PLet String PTy PTm PTm
+  | PElim Lvl String
   | PIdent String
   | PCast PTm PTy
   deriving (Eq, Show)
@@ -27,13 +31,14 @@ type PTy = PTm
 data PreInd = PreInd
   {
     preIndName :: String,
-    preIndParams :: [PTy],
+    preIndParams :: [(String, PTy)],
     preIndArity :: PTy,
     preIndConstructors :: [(String, PTy)]
   }
   deriving (Eq, Show)
 
 data DefCmd = DefCmd { defCmdName :: String, defCmdType :: Maybe PTy, defCmdBody :: PTm }
+  deriving (Eq, Show)
 
 data Command
   = Definition DefCmd
@@ -43,6 +48,7 @@ data Command
   | NF PTm
   | HNF PTm
   | WHNF PTm
+  deriving (Eq, Show)
 
 toBound :: PTm → R.Reader [String] PTm
 toBound (PIdent s) =
@@ -120,9 +126,14 @@ boundToTerm (PCast tm ty) =
     ty' ← boundToTerm ty
     pure $ Cast tm' ty'
 boundToTerm (PBVar i) = pure $ BVar i
+boundToTerm (PElim lvl ind) =
+  do
+    void $ getInd ind
+    pure $ Elim lvl ind
 
 toTerm :: PTm → InCtx Tm
 toTerm tm =
     let bound = R.runReader (toBound tm) []
     in boundToTerm bound
     
+-- TODO : Convert PreInd to Ind

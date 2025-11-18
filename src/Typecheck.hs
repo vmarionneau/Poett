@@ -148,7 +148,6 @@ checkElim ind lvl =
                  ; mapM (\ name → 
                            do
                              { ty ← infer (FVar name)
-                             -- Π[y : A].Π[lt : R 0 x].Acc A R 1 
                              ; u ← infer ty
                              ; lvl ← whnf u >>= asU
                              ; if lvl == Prop

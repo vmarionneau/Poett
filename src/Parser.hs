@@ -5,6 +5,8 @@ module Parser (module Parser) where
 import Control.Applicative
 import Control.Monad (foldM, void)
 import Data.Char (ord)
+import Syntax
+import Term
 
 newtype Parser a b = Parser { runParser :: a → Maybe (b, a) }
 
@@ -35,6 +37,24 @@ ma << mb =
 data Stream a = Stream { streamData :: [a], streamRow :: Int, streamCol :: Int }
   deriving (Eq, Show)
 
+data Loc a = Loc { locData :: a, locRow :: Int, locCol :: Int }
+  deriving (Eq, Show)
+
+data Pos = Pos { posRow :: Int, posCol :: Int }
+  deriving (Eq, Show)
+
+data Scoped a = Scoped { scopedData :: [a], scopes :: [Pos] }
+  deriving (Eq, Show)
+
+( @: ) :: a → Pos → Loc a
+x @: p = Loc x (posRow p) (posCol p)
+
+pos :: Loc a → Pos
+pos x = Pos (locRow x) (locCol x)
+
+( @< ) :: a → Loc b → Loc a
+x @< y = x @: pos y
+
 parserFail :: Parser a b
 parserFail = Parser (const Nothing)
 
@@ -53,11 +73,17 @@ parseMaybe p = Parser (\ s →
                       )
 
 data Token
-  = Definition
-  | Inductive
+  = DefTok
+  | IndTok
+  | CheckTok
+  | PrintTok
+  | NFTok
+  | HNFTok
+  | WHNFTok
   | Lambda
-  | TokPi
-  | Let
+  | PiTok
+  | LetTok
+  | ElimTok
   | DefEq
   | In
   | LParen
@@ -69,6 +95,8 @@ data Token
   | Comma
   | Colon
   | Bar
+  | Universe Int
+  | PropTok
   deriving (Eq, Show)
 
 nextCol :: Parser (Stream a) ()
@@ -123,13 +151,19 @@ getRow =
     str ← getStream
     pure $ streamRow str
 
-getPos :: Parser (Stream a) (Int, Int)
+getPos :: Parser (Stream a) Pos
 getPos =
   do
     col ← getCol
     row ← getRow
-    pure (row, col)
+    pure (Pos row col)
 
+setPos :: Pos → Parser (Stream a) ()
+setPos p =
+  do
+    str ← getStream
+    setStream $ str { streamRow = posRow p, streamCol = posCol p }
+  
 peeking :: Parser a b → Parser a b
 peeking p =
   Parser
@@ -160,10 +194,19 @@ alpha = oneOf $ char <$> "_abcdefghijklmnopqrtsuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 num :: Parser (Stream Char) Char
 num = oneOf $ char <$> "0123456789"
 
+index :: Parser (Stream Char) Char
+index = oneOf $ char <$> "₀₁₂₃₄₅₆₇₈₉"
+
 readDigit :: Char → Parser a Int
 readDigit c =
   if (ord '0' <= ord c) && ord c <= ord '9'
   then pure (ord c - ord '0')
+  else parserFail
+
+readIndexDigit :: Char → Parser a Int
+readIndexDigit c =
+  if (ord '₀' <= ord c) && ord c <= ord '₉'
+  then pure (ord c - ord '₀')
   else parserFail
 
 digit :: Parser (Stream Char) Int
@@ -172,8 +215,14 @@ digit =
     c ← num
     readDigit c
 
+indexDigit :: Parser (Stream Char) Int
+indexDigit =
+  do
+    c ← index
+    readIndexDigit c
+
 alphaNum :: Parser (Stream Char) Char
-alphaNum = alpha <|> num
+alphaNum = alpha <|> num <|> index
 
 identifier :: Parser (Stream Char) Token
 identifier =
@@ -187,8 +236,23 @@ number =
   do
     d0 ← digit
     digits ← many digit
-    pure $ Number $ foldl (\ i d → i * 10 + d) d0 digits
-                    
+    if (d0 == 0) && (digits /= [])
+      then parserFail
+      else pure $ Number $ foldl (\ i d → i * 10 + d) d0 digits
+
+universe :: Parser (Stream Char) Token
+universe =
+  do
+    void $ char 'U'
+    d0 ← indexDigit
+    digits ← many indexDigit
+    if (d0 == 0) && (digits /= [])
+      then parserFail
+      else pure $ Universe $ foldl (\ i d → i * 10 + d) d0 digits
+
+prop :: Parser (Stream Char) Token
+prop = notFollowed (string "Prop") alphaNum >> pure PropTok
+
 comma :: Parser (Stream Char) Token
 comma = char ',' >> pure Comma
 
@@ -208,10 +272,10 @@ lambda :: Parser (Stream Char) Token
 lambda = notFollowed (string "λ" <|> string "fun") alphaNum >> pure Lambda
 
 piTok :: Parser (Stream Char) Token
-piTok = notFollowed (string "Π" <|> string "Pi") alphaNum >> pure TokPi
+piTok = notFollowed (string "Π" <|> string "Pi") alphaNum >> pure PiTok
 
 letTok :: Parser (Stream Char) Token
-letTok = notFollowed (string "let") alphaNum >> pure Let
+letTok = notFollowed (string "let") alphaNum >> pure LetTok
 
 defEq :: Parser (Stream Char) Token
 defEq = notFollowed (string ":=") alphaNum >> pure DefEq
@@ -219,17 +283,35 @@ defEq = notFollowed (string ":=") alphaNum >> pure DefEq
 inTok :: Parser (Stream Char) Token
 inTok = notFollowed (string "in") alphaNum >> pure In
 
-definition :: Parser (Stream Char) Token
-definition = notFollowed (string "def") alphaNum >> pure Definition
+elimTok :: Parser (Stream Char) Token
+elimTok = notFollowed (string "elim") alphaNum >> pure ElimTok
 
-inductive :: Parser (Stream Char) Token
-inductive = notFollowed (string "ind") alphaNum >> pure Inductive
+defTok :: Parser (Stream Char) Token
+defTok = notFollowed (string "def") alphaNum >> pure DefTok
+
+indTok :: Parser (Stream Char) Token
+indTok = notFollowed (string "ind") alphaNum >> pure IndTok
+
+checkTok :: Parser (Stream Char) Token
+checkTok = notFollowed (string "#check") alphaNum >> pure CheckTok
+
+printTok :: Parser (Stream Char) Token
+printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
+
+nfTok :: Parser (Stream Char) Token
+nfTok = notFollowed (string "#nf") alphaNum >> pure NFTok
+
+hnfTok :: Parser (Stream Char) Token
+hnfTok = notFollowed (string "#hnf") alphaNum >> pure HNFTok
+
+whnfTok :: Parser (Stream Char) Token
+whnfTok = notFollowed (string "#whnf") alphaNum >> pure WHNFTok
 
 lparen :: Parser (Stream Char) Token
 lparen = char '(' >> pure LParen
 
 rparen :: Parser (Stream Char) Token
-rparen = char ')' >> pure LParen
+rparen = char ')' >> pure RParen
 
 whitespace :: Parser (Stream Char) String
 whitespace = many $ oneOf $ char <$> " \t\r\n"
@@ -238,12 +320,19 @@ token :: Parser (Stream Char) Token
 token = oneOf
         [ lambda
         , piTok
-        , definition
-        , inductive
+        , defTok
+        , indTok
+        , checkTok
+        , printTok
+        , nfTok
+        , hnfTok
+        , whnfTok
         , lparen
         , rparen
         , lbracket
         , rbracket
+        , universe
+        , prop
         , number
         , comma
         , bar
@@ -251,14 +340,279 @@ token = oneOf
         , defEq
         , colon
         , inTok
+        , elimTok
         , identifier]
 
-tokenPos :: Parser (Stream Char) (Token, (Int, Int))
+tokenPos :: Parser (Stream Char) (Loc Token)
 tokenPos =
   do
-    pos ← getPos
+    p ← getPos
     tok ← token
-    pure (tok, pos)
+    pure $ tok @: p
 
-lexer :: Parser (Stream Char) [(Token, (Int, Int))]
+lexer :: Parser (Stream Char) [Loc Token]
 lexer = many (tokenPos << whitespace)
+
+anchor :: Pos → Parser (Scoped (Loc a)) ()
+anchor p =
+  do
+    scope ← getStream
+    setStream $ scope { scopes = p:scopes scope }
+
+deanchor :: Parser (Scoped (Loc a)) ()
+deanchor = 
+  do
+    scope ← getStream
+    setStream $ scope { scopes = drop 1 $ scopes scope }
+
+inScope :: Pos → Pos → Bool
+inScope p scope = (posRow scope == posRow p) ||
+                    (posRow scope <= posRow p
+                     && posCol scope <= posCol p)
+
+nextTok :: Parser (Scoped (Loc Token)) (Loc Token)
+nextTok =
+  do
+    scope ← getStream
+    case (scopedData scope, scopes scope) of
+      ([], _) → parserFail
+      ((t:ts), []) → setStream (scope { scopedData = ts }) >> pure t
+      ((t:ts), p:_) → 
+        if pos t `inScope` p
+        then setStream (scope { scopedData = ts }) >> pure t
+        else parserFail
+
+parseTok :: Token → Parser (Scoped (Loc Token)) (Loc Token)
+parseTok tok =
+  do
+    t ← nextTok
+    if locData t == tok
+      then pure t
+      else parserFail
+
+parseIdent :: Parser (Scoped (Loc Token)) (Loc String)
+parseIdent =
+  do
+    tok ← nextTok
+    case locData tok of
+      Identifier s → pure $ (s @< tok)
+      _ → parserFail
+
+parseLvl :: Parser (Scoped (Loc Token)) (Loc Lvl)
+parseLvl =
+  do
+    tok ← nextTok
+    case locData tok of
+      Universe i → pure $ (Type i) @< tok
+      PropTok → pure $ Prop @< tok
+      _ → parserFail
+
+univ :: Parser (Scoped (Loc Token)) (Loc PTm)
+univ =
+  do
+     lvl ← parseLvl
+     pure $ (PU (locData lvl)) @< lvl
+
+ident :: Parser (Scoped (Loc Token)) (Loc PTm)
+ident =
+  do
+    s ← parseIdent
+    pure $ (PIdent (locData s)) @< s
+
+elim :: Parser (Scoped (Loc Token)) (Loc PTm)
+elim =
+  do
+    s ← parseTok ElimTok
+    lvl ← locData <$> parseLvl
+    ind ← locData <$> parseIdent
+    pure $ (PElim lvl ind) @< s
+
+expr :: Parser (Scoped (Loc (Token))) (Loc PTm)
+expr =
+  do
+    tm ← expr'
+    args ← (fmap locData) <$> many expr'
+    if args == []
+    then pure tm
+    else pure $ (PApp (locData tm) args) @< tm
+
+expr' :: Parser (Scoped (Loc Token)) (Loc PTm)
+expr' = oneOf
+        [parseAbs
+        , parsePi
+        , univ
+        , letExpr
+        , cast
+        , elim
+        , parentExpr
+        , ident]
+
+parentExpr :: Parser (Scoped (Loc Token)) (Loc PTm)
+parentExpr =
+  do
+    beg ← parseTok LParen
+    anchor $ pos beg
+    res ← locData <$> expr
+    void $ parseTok RParen
+    deanchor
+    pure $ res @< beg
+
+varDecl :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
+varDecl =
+  do
+    beg ← parseTok LParen
+    anchor $ pos beg
+    var ← locData <$> parseIdent
+    void $ parseTok Colon
+    ty ← locData <$> expr
+    void $ parseTok RParen
+    deanchor
+    pure $ (var, ty) @< beg
+
+cast :: Parser (Scoped (Loc Token)) (Loc PTm)
+cast =
+  do
+    beg ← parseTok LParen
+    anchor $ pos beg
+    tm ← locData <$> expr
+    void $ parseTok Colon
+    ty ← locData <$> expr
+    void $ parseTok RParen
+    deanchor
+    pure $ (PCast tm ty) @< beg
+
+parseAbs :: Parser (Scoped (Loc Token)) (Loc PTm)
+parseAbs =
+  do
+    beg ← parseTok Lambda
+    anchor $ pos beg
+    (name, ty) ← locData <$> varDecl
+    void $ parseTok Comma
+    body ← locData <$> expr
+    deanchor
+    pure $ (PAbs name ty body) @< beg
+
+parsePi :: Parser (Scoped (Loc Token)) (Loc PTm)
+parsePi =
+  do
+    beg ← parseTok PiTok
+    anchor $ pos beg
+    (name, ty) ← locData <$> varDecl
+    fam ← locData <$> expr
+    deanchor
+    pure $ (PPi name ty fam) @< beg
+
+letExpr :: Parser (Scoped (Loc Token)) (Loc PTm)
+letExpr =
+  do
+    beg ← parseTok LetTok
+    anchor $ pos beg
+    (name, ty) ← locData <$> varDecl
+    defeq ← parseTok DefEq
+    anchor $ pos defeq
+    tm1 ← locData <$> expr
+    deanchor
+    tokIn ← parseTok In
+    anchor $ pos tokIn
+    tm2 ← locData <$> expr
+    deanchor
+    deanchor
+    pure $ (PLet name ty tm1 tm2) @< beg
+
+definition :: Parser (Scoped (Loc Token)) (Loc Command)
+definition =
+  do
+    beg ← parseTok DefTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    ty ← (fmap locData) <$> (parseMaybe $ parseTok Colon >> expr)
+    defeq ← parseTok DefEq
+    anchor $ pos defeq
+    body ← locData <$> expr
+    deanchor
+    deanchor
+    pure $ (Definition $ DefCmd name ty body) @< beg
+
+constructor :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
+constructor =
+  do
+    beg ← parseTok Bar
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    void $ parseTok Colon
+    ty ← locData <$> expr
+    deanchor
+    pure $ (name, ty) @< beg
+       
+inductive :: Parser (Scoped (Loc Token)) (Loc Command)
+inductive =
+  do
+    beg ← parseTok IndTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    params ← (fmap locData) <$> many varDecl
+    void $ parseTok Colon
+    ar ← locData <$> expr
+    constr ← (fmap locData) <$> many constructor
+    deanchor
+    deanchor
+    pure $ (Inductive $ PreInd name params ar constr) @< beg
+
+checkCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+checkCmd =
+  do
+    beg ← parseTok CheckTok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (Check tm) @< beg
+
+printCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+printCmd =
+  do
+    beg ← parseTok PrintTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    deanchor
+    pure $ (Print name) @< beg
+
+nfCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+nfCmd =
+  do
+    beg ← parseTok NFTok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (NF tm) @< beg
+
+hnfCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+hnfCmd =
+  do
+    beg ← parseTok HNFTok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (HNF tm) @< beg
+
+whnfCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+whnfCmd =
+  do
+    beg ← parseTok WHNFTok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (WHNF tm) @< beg
+
+command :: Parser (Scoped (Loc Token)) (Loc Command)
+command = oneOf
+          [ definition
+          , inductive
+          , checkCmd
+          , printCmd
+          , nfCmd
+          , hnfCmd
+          , whnfCmd
+          ]
+
+script :: Parser (Scoped (Loc Token)) [Loc Command]
+script = many command
