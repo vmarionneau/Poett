@@ -96,28 +96,31 @@ boundToTerm (PElim lvl ind) =
     void $ getInd ind
     pure $ Elim lvl ind
 
-toTerm :: PTm → InCtx Tm
-toTerm tm =
-    let bound = R.runReader (toBound tm) []
+toTermFrom :: [String] → PTm → InCtx Tm
+toTermFrom vars tm =
+    let bound = R.runReader (toBound tm) vars
     in boundToTerm bound
 
+toTerm :: PTm → InCtx Tm
+toTerm = toTermFrom []
+
 toParams :: [(String, PTy)] → InCtx [Name]
-toParams = aux []
+toParams = aux [] []
   where
-    aux :: [Name] → [(String, PTy)] → InCtx [Name]
-    aux params [] = pure params
-    aux params ((name, pty):ps) =
+    aux :: [Name] → [String] → [(String, PTy)] → InCtx [Name]
+    aux params _ [] = pure params
+    aux params seen ((name, pty):ps) =
       do
-        ty ← toTerm pty
+        ty ← toTermFrom seen pty
         let ty' = instantiate (FVar <$> params) ty
         ensureType ty'
         pName ← addVar (named name) ty'
-        aux (pName:params) ps
+        aux (pName:params) (name:seen) ps
         
-toArity :: [Name] → PTy → InCtx (Arity Ty)
-toArity pNames pty =
+toArity :: [Name] → [String] → PTy → InCtx (Arity Ty)
+toArity pNames pStrings pty =
   do
-    ty ← toTerm pty
+    ty ← toTermFrom pStrings pty
     ty' ← nf (instantiate (FVar <$> pNames) ty)
     ensureType ty'
     let (args, body) = unravelPi (-1) ty'
@@ -152,7 +155,7 @@ toCsArgs nameInd pNames args =
     let (argNames, recs) = unzip args'
     ty ← closeProducts argNames $ Ident "Dummy"
     let ty' = abstract pNames ty
-    let (args'', _) = unravelPi (-1) ty
+    let (args'', _) = unravelPi (-1) ty'
     pure $ zipWith (\ (name, ty) isRec → let (args, body) = unravelPi (-1) ty in (name, CsArg args body isRec)) args'' (reverse recs)
   where
     aux :: [(Name,Ty)] → [(Name, Bool)] → InCtx [(Name, Bool)]
@@ -162,7 +165,7 @@ toCsArgs nameInd pNames args =
         let ty' = instantiate ((FVar . fst) <$> names) ty
         ensureType ty'
         nfTy ← nf ty'
-        isRec ← checkRec ty'
+        isRec ← checkRec nfTy
         name' ← addVar name ty'
         aux args ((name', isRec):names)
 
@@ -170,18 +173,18 @@ toCsArgs nameInd pNames args =
       do
         checkAbsence ty
         checkRec fam
-    checkRec (App func args) =
+    checkRec (App tm args) =
       do
         mapM checkAbsence args
         let pars = take (length pNames) args
-        if func == Ident nameInd then
+        if tm == Ident nameInd then
           if pars /= (FVar <$> (reverse pNames)) then
             fail $ "Parameters should be constant inside types of constructors for " ++ nameInd
           else pure True
           else 
-          checkAbsence func >> pure False
+          checkAbsence tm >> pure False
     -- No need to check for the number of arguments, it typechecks
-    checkRec (Ident s) = pure $ s /= nameInd
+    checkRec (Ident s) = pure $ s == nameInd
     checkRec (Cast tm ty) =
       do
         checkAbsence ty
@@ -199,14 +202,14 @@ toCsArgs nameInd pNames args =
     checkAbsence (Cast tm ty) = checkAbsence tm >> checkAbsence ty
     checkAbsence _ = pure ()
         
-toConstructor :: String → [Name] → (String, PTy) → InCtx (Constructor Ty)
-toConstructor nameInd pNames (name, pty) =
+toConstructor :: String → [Name] → [String] → (String, PTy) → InCtx (Constructor Ty)
+toConstructor nameInd pNames pStrings (name, pty) =
   do
-    ty ← toTerm pty
+    ty ← toTermFrom pStrings pty
     ty' ← nf (instantiate (FVar <$> pNames) ty)
     ensureType ty'
     let (args, body) = unravelPi (-1) ty'
-    cArgs ← toCsArgs name pNames args
+    cArgs ← toCsArgs nameInd pNames args
     let (tm, tmArgs) = asApp body
     let pars = take (length pNames) tmArgs
     if tm /= Ident nameInd
@@ -232,15 +235,15 @@ toInd :: PreInd → InCtx (Ind Ty)
 toInd pind =
   do
     let name = preIndName pind
-    pNames ← toParams (preIndParams pind)
-    -- Must do a first pass to convert identifiers referring to
-    -- parameters into their proper bound variables
-    arity ← toArity pNames $ preIndArity pind
+    let pPars = preIndParams pind
+    let pStrings = reverse $ fst <$> pPars
+    pNames ← toParams pPars
+    arity ← toArity pNames pStrings $ preIndArity pind
     ar ← abstractArity pNames arity
     cstTy ← foldArity pNames arity
     addCst name cstTy
-    csts ← mapM (toConstructor name pNames) $ preIndConstructors pind
+    csts ← mapM (toConstructor name pNames pStrings) $ preIndConstructors pind
     removeDef name
     ty ← closeProducts pNames (Ident "dummy")
     let (params', _) = unravelPi (-1) ty
-    pure $ Ind name params' arity csts
+    pure $ Ind name params' ar csts
