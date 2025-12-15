@@ -71,7 +71,13 @@ whnf (Ident s) =
   do
     bdef ← isDef s
     if bdef
-      then getDef s >>= (whnf . defBody)
+      then
+      do
+        { df ← getDef s
+        ; case defBody df of
+            Nothing → pure $ Ident s
+            Just e → whnf e
+        } 
       else pure $ Ident s
 whnf t = pure t
 

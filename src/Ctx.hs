@@ -19,7 +19,7 @@ type LocalCtx = [LocalCtxEntry]
 emptyLocalCtx :: LocalCtx
 emptyLocalCtx = []
 
-data Def = Def {defName :: String, defType :: Ty, defBody :: Tm}
+data Def = Def {defName :: String, defType :: Ty, defBody :: Maybe Tm}
   deriving (Eq, Show)
 
 type DefCtx = Map.Map String Def
@@ -207,8 +207,18 @@ addDef name tm ty =
     defs ← getDefCtx
     if bInd || bDef
     then fail $ "Already defined : " ++ name
-    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty tm)
-    
+    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm))
+
+addCst :: String → Ty → InCtx ()
+addCst name ty =
+  do
+    bInd ← isInd name
+    bDef ← isDef name
+    defs ← getDefCtx
+    if bInd || bDef
+    then fail $ "Already defined : " ++ name
+    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty Nothing)
+
 freshName :: Name → InCtx Name
 freshName name =
   do lctx ← getLocalCtx
@@ -258,6 +268,14 @@ addLocals decls =
      lctx ← getLocalCtx
      setLocalCtx $ entries ++ lctx
      pure $ entryName <$> entries
+
+removeDef :: String → InCtx ()
+removeDef name =
+  do
+    dctx ← getDefCtx
+    if name `Map.member` dctx
+    then setDefCtx $ Map.delete name dctx
+    else fail $ "Can't remove " ++ name ++ " it is not defined."
 
 removeDecl :: Name → InCtx ()
 removeDecl name =

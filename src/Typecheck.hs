@@ -171,5 +171,6 @@ checkElim ind lvl =
 ensureType :: Ty → InCtx ()
 ensureType ty =
   do
-    u ← infer tm
-    whnf u >>= asU 
+    u ← infer ty
+    whnf u >>= asU
+    pure ()

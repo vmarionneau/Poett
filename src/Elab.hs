@@ -104,11 +104,12 @@ toTerm tm =
 toParams :: [(String, PTy)] → InCtx [Name]
 toParams = aux []
   where
+    aux :: [Name] → [(String, PTy)] → InCtx [Name]
     aux params [] = pure params
     aux params ((name, pty):ps) =
       do
         ty ← toTerm pty
-        ty' ← instantiate params ty
+        let ty' = instantiate (FVar <$> params) ty
         ensureType ty'
         pName ← addVar (named name) ty'
         aux (pName:params) ps
@@ -119,25 +120,95 @@ toArity pNames pty =
     ty ← toTerm pty
     ty' ← nf (instantiate (FVar <$> pNames) ty)
     ensureType ty'
-    (args, body) ← unravelPi ty'
+    let (args, body) = unravelPi (-1) ty'
     case body of
       U lvl → pure $ Arity args lvl
       _ → fail "Not an arity"
 
--- TODO 
-toCsArgs :: String → [(Name, Ty)] → InCtx ([CsArg Ty])
-toCsArgs _ _ = fail "Not Yet Implemented"
+abstractArity :: [Name] → Arity Ty → InCtx (Arity Ty)
+abstractArity pNames ar =
+  do
+    let args = arArgs ar
+    argNames ← addTelescope $ args
+    ty ← closeProducts argNames $ U (arSort ar)
+    let ty' = abstract pNames ty
+    case unravelPi (-1) ty' of
+      (args, U lvl) → pure $ Arity args lvl
+      _ → fail "Unreachable error has been reached"
 
+-- Note : This should be run on the output of toArity and not on the one of abstractArity
+foldArity :: [Name] → Arity Ty → InCtx Ty
+foldArity pNames ar =
+  isolate $
+    do
+      let args = arArgs ar
+      argNames ← addTelescope $ args
+      closeProducts (argNames ++ pNames) $ U (arSort ar)
+
+toCsArgs :: String → [Name] → [(Name, Ty)] → InCtx [(Name, CsArg Ty)]
+toCsArgs nameInd pNames args =
+  do
+    args' ← aux args []
+    let (argNames, recs) = unzip args'
+    ty ← closeProducts argNames $ Ident "Dummy"
+    let ty' = abstract pNames ty
+    let (args'', _) = unravelPi (-1) ty
+    pure $ zipWith (\ (name, ty) isRec → let (args, body) = unravelPi (-1) ty in (name, CsArg args body isRec)) args'' (reverse recs)
+  where
+    aux :: [(Name,Ty)] → [(Name, Bool)] → InCtx [(Name, Bool)]
+    aux [] names = pure names
+    aux ((name,ty):args) names =
+      do
+        let ty' = instantiate ((FVar . fst) <$> names) ty
+        ensureType ty'
+        nfTy ← nf ty'
+        isRec ← checkRec ty'
+        name' ← addVar name ty'
+        aux args ((name', isRec):names)
+
+    checkRec (Pi _ ty fam) =
+      do
+        checkAbsence ty
+        checkRec fam
+    checkRec (App func args) =
+      do
+        mapM checkAbsence args
+        let pars = take (length pNames) args
+        if func == Ident nameInd then
+          if pars /= (FVar <$> (reverse pNames)) then
+            fail $ "Parameters should be constant inside types of constructors for " ++ nameInd
+          else pure True
+          else 
+          checkAbsence func >> pure False
+    -- No need to check for the number of arguments, it typechecks
+    checkRec (Ident s) = pure $ s /= nameInd
+    checkRec (Cast tm ty) =
+      do
+        checkAbsence ty
+        checkRec tm
+    checkRec tm = checkAbsence tm >> pure False
+
+    checkAbsence (Ident s) =
+      if s == nameInd
+      then fail $ "Non stricttly positive occurence of " ++ nameInd ++ " found"
+      else pure ()
+    checkAbsence (Pi _ ty fam) = checkAbsence ty >> checkAbsence fam
+    checkAbsence (Abs _ ty tm) = checkAbsence ty >> checkAbsence tm
+    checkAbsence (App tm args) = checkAbsence tm >> mapM checkAbsence args >> pure ()
+    checkAbsence (Let _ ty tm body) = checkAbsence ty >> checkAbsence tm >> checkAbsence body
+    checkAbsence (Cast tm ty) = checkAbsence tm >> checkAbsence ty
+    checkAbsence _ = pure ()
+        
 toConstructor :: String → [Name] → (String, PTy) → InCtx (Constructor Ty)
 toConstructor nameInd pNames (name, pty) =
   do
     ty ← toTerm pty
     ty' ← nf (instantiate (FVar <$> pNames) ty)
-    (args, body) ← unravelPi ty'
-    cArgs ← toCsArgs name args
+    ensureType ty'
+    let (args, body) = unravelPi (-1) ty'
+    cArgs ← toCsArgs name pNames args
     let (tm, tmArgs) = asApp body
     let pars = take (length pNames) tmArgs
-    let indices = drop (length pNames) tmArgs
     if tm /= Ident nameInd
       then fail
            $ "Type of constructor "
@@ -149,15 +220,27 @@ toConstructor nameInd pNames (name, pty) =
            $ "Return type of constructor "
            ++ name
            ++ " should is not applied to the correct parameters"
-      else pure $ Constructor name cArgs indices
+      else
+        let ty'' = abstract pNames ty' in
+        let (_, body') = unravelPi (-1) ty'' in
+        let (_, tmArgs') = asApp body' in
+        let indices = drop (length pNames) tmArgs' in
+          pure $ Constructor name cArgs indices
+             
 
 toInd :: PreInd → InCtx (Ind Ty)
 toInd pind =
   do
     let name = preIndName pind
-    pNames ← toParams (preIndParams pind) []
+    pNames ← toParams (preIndParams pind)
+    -- Must do a first pass to convert identifiers referring to
+    -- parameters into their proper bound variables
     arity ← toArity pNames $ preIndArity pind
+    ar ← abstractArity pNames arity
+    cstTy ← foldArity pNames arity
+    addCst name cstTy
     csts ← mapM (toConstructor name pNames) $ preIndConstructors pind
-    -- /!\ Abstract over the parameter names /!\
+    removeDef name
+    ty ← closeProducts pNames (Ident "dummy")
+    let (params', _) = unravelPi (-1) ty
     pure $ Ind name params' arity csts
-  
