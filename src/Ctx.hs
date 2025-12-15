@@ -187,6 +187,27 @@ getIndConstr nameInd i =
   do
     ind ← getInd nameInd
     getConstr ind i
+
+addInd :: Ind Ty → InCtx ()
+addInd ind =
+  do
+    let name = indName ind
+    bInd ← isInd name
+    bDef ← isDef name
+    inds ← getIndCtx
+    if bInd || bDef
+    then fail $ "Already defined : " ++ name
+    else setIndCtx $ inds `Map.union` (Map.singleton name ind)
+
+addDef :: String → Tm → Ty → InCtx ()
+addDef name tm ty =
+  do
+    bInd ← isInd name
+    bDef ← isDef name
+    defs ← getDefCtx
+    if bInd || bDef
+    then fail $ "Already defined : " ++ name
+    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty tm)
     
 freshName :: Name → InCtx Name
 freshName name =

@@ -168,4 +168,8 @@ checkElim ind lvl =
         argName' ← addVar argName argType
         aux paramNames args (argName':csArgNames)
 
-    
+ensureType :: Ty → InCtx ()
+ensureType ty =
+  do
+    u ← infer tm
+    whnf u >>= asU 
