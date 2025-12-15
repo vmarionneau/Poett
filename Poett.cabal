@@ -7,8 +7,8 @@ cabal-version: 2.2
 name:           Poett
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/Poett#readme>
-homepage:       https://github.com/githubuser/Poett#readme
-bug-reports:    https://github.com/githubuser/Poett/issues
+homepage:       https://github.com/vmarionneau/Poett#readme
+bug-reports:    https://github.com/vmarionneau/Poett/issues
 author:         Virgil Marionneau
 maintainer:     example@example.com
 copyright:      2025 Author name here
@@ -21,15 +21,19 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/Poett
+  location: https://github.com/vmarionneau/Poett
 
 library
   exposed-modules:
       Ctx
+      Elab
       Elim
       Ind
       Name
+      Parser
+      Syntax
       Term
+      TestInds
       Typecheck
       WHNF
   other-modules:
