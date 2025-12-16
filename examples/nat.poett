@@ -23,6 +23,14 @@ def ap : Π (A : U₀) Π (B : U₀) Π (f : A → B) Π (x : A) Π (y : A) eq A
          elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq B (f x) (f y))
               (refl B (f x))
 
+ind top : Prop
+| truth : top
+
+ind bot : Prop
+
+def not : Prop → Prop
+    := λ (A : Prop), A → bot
+
 ind nat : U₀
 | zero : nat
 | succ : nat → nat
@@ -60,3 +68,22 @@ def add_comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
                           (ap nat nat succ (add n m) (add m n) (ih m))
                           (sym nat (add m (succ n)) (succ (add m n)) (add_succ_r m n))
                  )
+def add_assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)
+    := elim Prop nat (λ (n : nat), Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k))
+       (λ (m : nat), λ (k : nat), refl nat (add m k))
+       (λ (n : nat),
+        λ (ih : Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)),
+        λ (m : nat),
+        λ (k : nat),
+        ap nat nat succ (add n (add m k)) (add (add n m) k) (ih m k)
+       )
+
+def bot_above_succ : nat → Prop
+    := elim U₀ nat (λ (_ : nat), Prop) top (λ (_ : nat), λ (_ : Prop), bot)
+    
+def zero_neq_succ : Π(n : nat) not (eq nat zero (succ n))
+    := λ (n : nat),
+       λ (p : eq nat zero (succ n)),
+         elim Prop eq nat zero
+              (λ (n₀ : nat), λ (_ : eq nat zero n₀), bot_above_succ n₀)
+              truth (succ n) p

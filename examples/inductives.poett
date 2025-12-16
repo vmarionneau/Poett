@@ -5,9 +5,63 @@ ind list (A : U₀) : U₀
 | nil : list A
 | cons : Π(h : A) Π(t : list A) list A
 
-ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
+ind Acc (A : U₀) (R : A → A → Prop) : A → Prop 
 | acc : Π(x : A) Π(below : Π(y : A) R y x → Acc A R y) Acc A R x
 
+ind W (A : U₀) (B : A → U₀) : U₀
+| node : Π(a : A) Π (f : B a → W A B) W A B
+
+ind empty : U₀
+
+ind unit : U₀
+| tt : unit
+
+ind sum (A : U₀) (B : U₀) : U₀
+| inl : A → sum A B
+| inr : B → sum A B
+
+def wlistNodes : U₀ → U₀
+    := λ (A : U₀), sum unit A
+
+def wlistAr : Π(A : U₀) wlistNodes A → U₀
+    := λ (A : U₀), elim U₁ sum unit A (λ (_ : sum unit A), U₀) (λ (_ : unit), empty) (λ (_ : A), unit)
+
+def wlist : U₀ → U₀
+    := λ (A : U₀), W (wlistNodes A) (wlistAr A)
+
+def wnil : Π(A : U₀) wlist A
+    := λ (A : U₀), node (wlistNodes A) (wlistAr A) (inl unit A tt) (elim U₀ empty (λ (_ : empty), wlist A))
+
+def wcons : Π(A : U₀) A → wlist A → wlist A
+    := λ (A : U₀), λ (h : A), λ (t : wlist A), node (wlistNodes A) (wlistAr A) (inr unit A h) (λ (_ : unit), t)
+
+def listToWlist : Π(A : U₀) list A → wlist A
+    := λ (A : U₀), elim U₀ list A (λ (_ : list A), wlist A) (wnil A) (λ (h : A), λ (_ : list A), λ (t : wlist A), wcons A h t)
+
+def wlistToList : Π(A : U₀) wlist A → list A
+    := λ (A : U₀),
+       elim U₀ W (wlistNodes A) (wlistAr A)
+            (λ (_ : W (wlistNodes A) (wlistAr A)), list A)
+            (elim U₀ sum unit A
+                  (λ (x : sum unit A), (wlistAr A x → wlist A) → (wlistAr A x → list A) → list A)
+                  (λ (_ : unit), λ (_ : empty → wlist A), λ (_ : empty → list A), nil A)
+                  (λ (h : A), λ (_ : unit → wlist A), λ (t : unit → list A), cons A h (t tt))
+             )
+
+def foo : list unit
+    := cons unit tt (cons unit tt (nil unit))
+
+def bar : wlist unit
+    := listToWlist unit foo
+
+def oof : list unit
+    := wlistToList unit bar
+
+#nf foo
+#nf bar
+#nf oof
+
+#check (refl (list unit) foo : eq (list unit) foo oof)
 
 #fail ind negative : U₀
       | negIntro : (negative → nat) → negative

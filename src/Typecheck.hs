@@ -136,9 +136,11 @@ check tm ty =
     if b
       then pure ()
       else do
+      ty'' ← nf ty
+      tyinf'' ← nf tyinf
       sTm ← showTermCtx tm
-      sTy ← showTermCtx ty'
-      sTyInf ← showTermCtx tyinf'
+      sTy ← showTermCtx ty''
+      sTyInf ← showTermCtx tyinf''
       fail (sTm ++ " has type " ++ sTyInf ++ " but was expected to have type " ++ sTy)
 
 checkElim :: Ind Ty → Lvl → InCtx ()

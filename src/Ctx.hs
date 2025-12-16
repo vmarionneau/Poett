@@ -316,7 +316,7 @@ closeAbs names tm =
     let (vars, lctx') = partition (\ entry → entryName entry `elem` names) lctx
     let names' = entryName <$> vars
     setLocalCtx lctx'
-    pure $ foldl (\ acc entry → Pi (entryName entry) (entryType entry) (abstract [entryName entry] acc)) tm vars
+    pure $ foldl (\ acc entry → Abs (entryName entry) (entryType entry) (abstract [entryName entry] acc)) tm vars
 
 unfoldLocal :: Name → Tm → InCtx Tm
 unfoldLocal name tm =
@@ -364,7 +364,8 @@ showTermCtx (App tm args) =
     sArgs ← mapM bracketArg args
     pure $ sTm ++ " " ++ (intercalate " " $ sArgs)
     where
-      bracketArg :: Tm -> InCtx String
+      bracketArg :: Tm → InCtx String
+      bracketArg tm@(Pi _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm@(Abs _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm@(App _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm@(Let _ _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
