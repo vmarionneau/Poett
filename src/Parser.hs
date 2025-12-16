@@ -6,6 +6,7 @@ import Control.Applicative
 import Control.Monad (foldM, void)
 import Data.Char (ord)
 import Syntax
+import Cmd
 import Term
 
 newtype Parser a b = Parser { runParser :: a → Maybe (b, a) }
