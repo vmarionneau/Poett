@@ -1,6 +1,28 @@
 ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
 
+def sym : Π(A : U₀) Π(x : A) Π(y : A) eq A x y → eq A y x
+    := λ (A : U₀),
+       λ (x : A),
+       elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq A y x)
+            (refl A x)
+
+def trans : Π(A : U₀) Π(x : A) Π(y : A) Π(z : A) eq A x y → eq A y z → eq A x z
+    := λ (A : U₀),
+       λ (x : A),
+       λ (y : A),
+       λ (z : A),
+       elim Prop eq A x (λ (y₀ : A), λ (_ : eq A x y₀), eq A y₀ z → eq A x z)
+            (λ (p : eq A x z), p) y
+
+def ap : Π (A : U₀) Π (B : U₀) Π (f : A → B) Π (x : A) Π (y : A) eq A x y → eq B (f x) (f y)
+    := λ (A : U₀),
+       λ (B : U₀),
+       λ (f : A → B),
+       λ (x : A),
+         elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq B (f x) (f y))
+              (refl B (f x))
+
 ind nat : U₀
 | zero : nat
 | succ : nat → nat
@@ -15,24 +37,26 @@ def add_zero_r : Π(n : nat) eq nat (add n zero) n
     := elim Prop nat (λ (n : nat), eq nat (add n zero) n)
             (refl nat zero)
             (λ (n : nat),
-             λ (H : eq nat (add n zero) n),
-               elim Prop eq nat (add n zero)
-                    (λ (n₀ : nat),
-                     λ (_ : eq nat (add n zero) n₀),
-                       eq nat (succ (add n zero)) (succ n₀)
-                     )
-                     (refl nat (succ (add n zero)))
-                     n H
+             λ (ih : eq nat (add n zero) n),
+               ap nat nat succ (add n zero) n ih
             )
 
-def one : nat := succ zero
-def two : nat := succ one
-def three : nat := succ two
+def add_succ_r : Π(n : nat) Π(m : nat) eq nat (add n (succ m)) (succ (add n m))
+    := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n (succ m)) (succ (add n m)))
+            (λ (m : nat), refl nat (succ m))
+            (λ (n : nat),
+             λ (ih : Π(m : nat) eq nat (add n (succ m)) (succ (add n m))),
+             λ (m : nat),
+               ap nat nat succ (add n (succ m)) (succ (add n m)) (ih m)
+            )
 
-#check (elim U₀ nat)
-#nf add one one
-#nf add one two
-#nf add three two
-#nf add three three
-#nf (λ (n : nat), add (succ n))
-#nf (λ (n : nat), add (succ n) zero)
+def add_comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
+    := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n m) (add m n))
+                 (λ (m : nat), sym nat (add m zero) m (add_zero_r m))
+                 (λ (n : nat),
+                  λ (ih : Π(m : nat) eq nat (add n m) (add m n)),
+                  λ (m : nat),
+                    trans nat (succ (add n m)) (succ (add m n)) (add m (succ n))
+                          (ap nat nat succ (add n m) (add m n) (ih m))
+                          (sym nat (add m (succ n)) (succ (add m n)) (add_succ_r m n))
+                 )
