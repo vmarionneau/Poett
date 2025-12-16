@@ -135,3 +135,9 @@ accDef = unlines
          [ "ind Acc (A : U₀) (R : Π(_ : A) Π(_ : A) Prop) : Π(_ : A) Prop\n"
          , "| acc : Π(x : A) Π(below : Π(y : A) Π(_ : R y x) Acc A R y) Acc A R x"
          ]
+
+wrongDef :: String
+wrongDef = unlines
+         [ "ind wrong : U₀\n"
+         , "| csWrong : Π(x : U₀) wrong"
+         ]

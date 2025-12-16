@@ -202,34 +202,36 @@ toCsArgs nameInd pNames args =
     checkAbsence (Cast tm ty) = checkAbsence tm >> checkAbsence ty
     checkAbsence _ = pure ()
         
-toConstructor :: String → [Name] → [String] → (String, PTy) → InCtx (Constructor Ty)
-toConstructor nameInd pNames pStrings (name, pty) =
+toConstructor :: String → [Name] → [String] → Lvl → (String, PTy) → InCtx (Constructor Ty)
+toConstructor nameInd pNames pStrings lvl (name, pty) =
   do
     ty ← toTermFrom pStrings pty
     ty' ← nf (instantiate (FVar <$> pNames) ty)
-    ensureType ty'
-    let (args, body) = unravelPi (-1) ty'
-    cArgs ← toCsArgs nameInd pNames args
-    let (tm, tmArgs) = asApp body
-    let pars = take (length pNames) tmArgs
-    if tm /= Ident nameInd
-      then fail
-           $ "Type of constructor "
-           ++ name
-           ++ " should end in an application of inductive type "
-           ++ nameInd
-      else if pars /= (FVar <$> (reverse pNames))
-      then fail
-           $ "Return type of constructor "
-           ++ name
-           ++ " should is not applied to the correct parameters"
-      else
-        let ty'' = abstract pNames ty' in
-        let (_, body') = unravelPi (-1) ty'' in
-        let (_, tmArgs') = asApp body' in
-        let indices = drop (length pNames) tmArgs' in
-          pure $ Constructor name cArgs indices
-             
+    u ← infer ty'
+    lvl' ← asU u
+    if lvl /= lvl'
+      then fail $ "Incorrect universe size for constructor type " ++ show ty ++ ", expected " ++ show lvl ++ " and got " ++ show lvl'
+      else do 
+      let (args, body) = unravelPi (-1) ty'
+      cArgs ← toCsArgs nameInd pNames args
+      let (tm, tmArgs) = asApp body
+      let pars = take (length pNames) tmArgs
+      if tm /= Ident nameInd
+        then fail
+             $ "Type of constructor "
+             ++ name
+             ++ " should end in an application of inductive type "
+             ++ nameInd
+        else if pars /= (FVar <$> (reverse pNames))
+        then fail
+             $ "Return type of constructor "
+             ++ name
+             ++ " should is not applied to the correct parameters"
+        else let ty'' = abstract pNames ty' in
+             let (_, body') = unravelPi (-1) ty'' in
+             let (_, tmArgs') = asApp body' in
+             let indices = drop (length pNames) tmArgs' in
+               pure $ Constructor name cArgs indices
 
 toInd :: PreInd → InCtx (Ind Ty)
 toInd pind =
@@ -241,8 +243,9 @@ toInd pind =
     arity ← toArity pNames pStrings $ preIndArity pind
     ar ← abstractArity pNames arity
     cstTy ← foldArity pNames arity
+    let lvl = arSort ar
     addCst name cstTy
-    csts ← mapM (toConstructor name pNames pStrings) $ preIndConstructors pind
+    csts ← mapM (toConstructor name pNames pStrings lvl) $ preIndConstructors pind
     removeDef name
     ty ← closeProducts pNames (Ident "dummy")
     let (params', _) = unravelPi (-1) ty
