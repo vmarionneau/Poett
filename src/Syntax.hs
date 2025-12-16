@@ -2,7 +2,7 @@
 
 module Syntax (module Syntax) where
 import Term
--- Pre Terms
+
 data PTm
   = PBVar Int
   | PU Lvl

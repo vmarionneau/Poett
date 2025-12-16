@@ -82,7 +82,7 @@ processNF ptm =
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← nf tm
-    pure $ print tm
+    pure $ print tm'
 
 processHNF :: PTm → InCtx (IO ())
 processHNF ptm =
@@ -90,7 +90,7 @@ processHNF ptm =
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← hnf tm
-    pure $ print tm
+    pure $ print tm'
 
 processWHNF :: PTm → InCtx (IO ())
 processWHNF ptm =
@@ -98,4 +98,13 @@ processWHNF ptm =
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← whnf tm
-    pure $ print tm
+    pure $ print tm'
+
+processCommand :: Command → InCtx (IO ())
+processCommand (Definition df) = processDef df
+processCommand (Inductive pind) = processInd pind
+processCommand (Check ptm) = processCheck ptm
+processCommand (Print name) = processPrint name
+processCommand (NF ptm) = processNF ptm
+processCommand (HNF ptm) = processHNF ptm
+processCommand (WHNF ptm) = processWHNF ptm
