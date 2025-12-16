@@ -83,6 +83,12 @@ inCtxOfEither m = InCtx (\ ctx → (\ x → (ctx, x)) <$> m)
 inCtxOfMaybe :: String → Maybe a → InCtx a
 inCtxOfMaybe s m = inCtxOfEither $ maybeEither s m
 
+inCtxTry :: InCtx a → InCtx (Either String a)
+inCtxTry m = InCtx (\ ctx → case runInCtx m ctx of
+                              Left err → Right (ctx, Left err)
+                              Right (ctx', x) → Right (ctx', Right x)
+                   )
+
 getCtx :: InCtx Ctx
 getCtx = InCtx (\ ctx → Right (ctx, ctx))
 
@@ -327,3 +333,46 @@ isolate m =
     x ← m
     setCtx ctx
     pure x
+
+showTermCtx :: Tm → InCtx String
+showTermCtx (FVar name) = pure $ show name
+showTermCtx (BVar i) = pure $ show i
+showTermCtx (U lvl) = pure $ show lvl
+showTermCtx (Pi name ty fam) =
+  do
+    sTy ← showTermCtx ty
+    name' ← addVar name ty
+    sFam ← showTermCtx (instantiate [FVar name'] fam)
+    removeDecl name'
+    pure $ "Π(" ++ show name' ++ " : " ++ sTy ++ ") " ++ sFam 
+showTermCtx (Abs name ty tm) =
+  do
+    sTy ← showTermCtx ty
+    name' ← addVar name ty
+    sTm ← showTermCtx (instantiate [FVar name'] tm)
+    removeDecl name'
+    pure $ "λ (" ++ show name' ++ " : " ++ sTy ++ "), " ++ sTm
+showTermCtx (App tm args) =
+  do
+    sTm ← bracketArg tm
+    sArgs ← mapM bracketArg args
+    pure $ sTm ++ " " ++ (intercalate " " $ sArgs)
+    where
+      bracketArg :: Tm -> InCtx String
+      bracketArg tm@(Abs _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm@(App _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm@(Let _ _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm = showTermCtx tm
+showTermCtx (Ident name) = pure name
+showTermCtx (Cast tm ty) =
+  do
+    sTm ← showTermCtx tm
+    sTy ← showTermCtx ty
+    pure $ "(" ++ sTm ++ " : " ++ sTy ++ ")"
+showTermCtx tm@(Constr nameInd i) =
+  do
+    mCst ← inCtxTry $ getIndConstr nameInd i
+    case mCst of
+      Left _ → pure $ show tm
+      Right cst → pure $ csName cst
+showTermCtx (Elim lvl nameInd) = pure $ "elim " ++ show lvl ++ " " ++ nameInd

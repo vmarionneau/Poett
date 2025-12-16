@@ -78,6 +78,7 @@ data Token
   | IndTok
   | CheckTok
   | PrintTok
+  | FailTok
   | NFTok
   | HNFTok
   | WHNFTok
@@ -299,6 +300,9 @@ checkTok = notFollowed (string "#check") alphaNum >> pure CheckTok
 printTok :: Parser (Stream Char) Token
 printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
 
+failTok :: Parser (Stream Char) Token
+failTok = notFollowed (string "#fail") alphaNum >> pure FailTok
+
 nfTok :: Parser (Stream Char) Token
 nfTok = notFollowed (string "#nf") alphaNum >> pure NFTok
 
@@ -325,6 +329,7 @@ token = oneOf
         , indTok
         , checkTok
         , printTok
+        , failTok
         , nfTok
         , hnfTok
         , whnfTok
@@ -577,6 +582,15 @@ printCmd =
     deanchor
     pure $ (Print name) @< beg
 
+failCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+failCmd =
+  do
+    beg ← parseTok FailTok
+    anchor $ pos beg
+    cmd ← locData <$> command
+    deanchor
+    pure $ (Fail cmd) @< beg
+
 nfCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 nfCmd =
   do
@@ -610,6 +624,7 @@ command = oneOf
           , inductive
           , checkCmd
           , printCmd
+          , failCmd
           , nfCmd
           , hnfCmd
           , whnfCmd

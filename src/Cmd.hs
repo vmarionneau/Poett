@@ -20,6 +20,7 @@ data Command
   | Inductive PreInd
   | Check PTm
   | Print String
+  | Fail Command
   | NF PTm
   | HNF PTm
   | WHNF PTm
@@ -55,7 +56,8 @@ processCheck ptm =
   do
     tm ← toTerm ptm
     ty ← infer tm
-    pure $ (print ty)
+    sTy ← showTermCtx ty
+    pure $ putStrLn sTy
 
 processPrint :: String → InCtx (IO ())
 processPrint name =
@@ -67,7 +69,9 @@ processPrint name =
         { df ← getDef name
         ; let body = fromMaybe (Ident name) (defBody df)
         ; let ty = defType df
-        ; pure $ putStrLn (show body ++ " : " ++ show ty)
+        ; sTm ← showTermCtx body
+        ; sTy ← showTermCtx ty
+        ; pure $ putStrLn (sTm ++ " : " ++ sTy)
         }
       else if bInd then
        do
@@ -76,13 +80,23 @@ processPrint name =
          }
       else fail $ "Not a defined constant : " ++ name
 
+processFail :: Command → InCtx (IO ())
+processFail cmd =
+  isolate $
+  do
+    x ← inCtxTry $ processCommand cmd
+    case x of
+      Right _ → fail "Command has not failed !"
+      Left err → pure $ putStrLn $ "Command has indeed failed with message : " ++ err
+
 processNF :: PTm → InCtx (IO ())
 processNF ptm =
   do
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← nf tm
-    pure $ print tm'
+    sTm ← showTermCtx tm'
+    pure $ putStrLn sTm
 
 processHNF :: PTm → InCtx (IO ())
 processHNF ptm =
@@ -90,7 +104,8 @@ processHNF ptm =
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← hnf tm
-    pure $ print tm'
+    sTm ← showTermCtx tm'
+    pure $ putStrLn sTm
 
 processWHNF :: PTm → InCtx (IO ())
 processWHNF ptm =
@@ -98,13 +113,15 @@ processWHNF ptm =
     tm ← toTerm ptm
     _ ← infer tm
     tm' ← whnf tm
-    pure $ print tm'
+    sTm ← showTermCtx tm'
+    pure $ putStrLn sTm
 
 processCommand :: Command → InCtx (IO ())
 processCommand (Definition df) = processDef df
 processCommand (Inductive pind) = processInd pind
 processCommand (Check ptm) = processCheck ptm
 processCommand (Print name) = processPrint name
+processCommand (Fail cmd) = processFail cmd
 processCommand (NF ptm) = processNF ptm
 processCommand (HNF ptm) = processHNF ptm
 processCommand (WHNF ptm) = processWHNF ptm

@@ -193,7 +193,7 @@ toCsArgs nameInd pNames args =
 
     checkAbsence (Ident s) =
       if s == nameInd
-      then fail $ "Non stricttly positive occurence of " ++ nameInd ++ " found"
+      then fail $ "Non strictly positive occurence of " ++ nameInd ++ " found"
       else pure ()
     checkAbsence (Pi _ ty fam) = checkAbsence ty >> checkAbsence fam
     checkAbsence (Abs _ ty tm) = checkAbsence ty >> checkAbsence tm
@@ -226,7 +226,7 @@ toConstructor nameInd pNames pStrings lvl (name, pty) =
         then fail
              $ "Return type of constructor "
              ++ name
-             ++ " should is not applied to the correct parameters"
+             ++ " should be applied to the same parameters as the declaration"
         else let ty'' = abstract pNames ty' in
              let (_, body') = unravelPi (-1) ty'' in
              let (_, tmArgs') = asApp body' in

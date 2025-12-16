@@ -4,9 +4,23 @@ module Term (module Term) where
 import Name
 import Data.Maybe (fromMaybe)
 import Data.List (elemIndex)
+import Data.Char (ord, chr)
 
 data Lvl = Type Int | Prop
-  deriving (Eq, Show)
+  deriving Eq
+ 
+showIndexDigit :: Int → Char
+showIndexDigit i = chr (ord '₀' + (i `mod` 10))
+
+showIndex :: Int → String
+showIndex i =
+  if i < 10
+  then [showIndexDigit i]
+  else showIndex (i `div` 10) ++ [showIndexDigit (i `mod` 10)]
+
+instance Show Lvl where
+  show (Type i) = "U" ++ showIndex i
+  show Prop = "Prop"
 
 data Tm
   = FVar Name
@@ -88,4 +102,3 @@ instance Show Tm where
       bracketArg tm@(App _ _) = "(" ++ show tm ++ ")"
       bracketArg tm@(Let _ _ _ _) = "(" ++ show tm ++ ")"
       bracketArg tm = show tm
-

@@ -19,11 +19,17 @@ piLvl (Type i) (Type j) = Type (i `max` j)
 
 asU :: Tm → InCtx Lvl
 asU (U lvl) = pure lvl
-asU ty = fail $ "Expected universe got " ++ show ty
+asU ty =
+  do
+    sTy ← showTermCtx ty
+    fail $ "Expected universe got " ++ sTy
 
 asPi :: Ty → InCtx (Name, Ty, Ty)
 asPi (Pi name ty fam) = pure (name, ty, fam)
-asPi ty = fail $ "Expected product got " ++ show ty 
+asPi ty =
+  do
+    sTy ← showTermCtx ty
+    fail $ "Expected product got " ++ sTy
 
 arToType :: [Name] → Arity Ty → InCtx Ty
 arToType paramNames ar =
@@ -126,8 +132,12 @@ check tm ty =
     tyinf ← infer  tm
     b ← conv ty tyinf
     if b
-    then pure ()
-    else fail (show tm ++ " has type " ++ show tyinf ++ " but was expected to have type " ++ show ty)
+      then pure ()
+      else do
+      sTm ← showTermCtx tm
+      sTy ← showTermCtx ty
+      sTyInf ← showTermCtx tyinf
+      fail (sTm ++ " has type " ++ sTyInf ++ " but was expected to have type " ++ sTy)
 
 checkElim :: Ind Ty → Lvl → InCtx ()
 checkElim ind lvl =

@@ -6,7 +6,7 @@ data Name = Name { nameString :: String, nameIndex :: Int }
   deriving (Eq, Ord)
 
 instance Show Name where
-  show name = if nameIndex name < 0
+  show name = if nameIndex name < 0 || nameString name == "_"
               then nameString name
               else nameString name ++ show (nameIndex name)
 
