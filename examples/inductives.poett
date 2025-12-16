@@ -1,0 +1,22 @@
+ind eq (A : U₀) (x : A) : Π(_ : A) U₀
+| refl : eq A x x
+
+ind list (A : U₀) : U₀
+| nil : list A
+| cons : Π(h : A) Π(t : list A) list A
+
+ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
+| acc : Π(x : A) Π(below : Π(y : A) R y x → Acc A R y) Acc A R x
+
+
+#fail ind negative : U₀
+      | negIntro : (negative → nat) → negative
+
+#fail ind nonStrict : U₀
+      | nonStrictIntro : ((nonStrict → nat) → nat) → nonStrict
+
+#fail ind wrong : U₀
+      | wrongIntro : nat → nat
+
+#fail ind wrongPars (A : U₀) (B : U₀) : U₀
+      | wrongParsIntro : wrongPars B A
