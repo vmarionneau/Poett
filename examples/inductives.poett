@@ -1,4 +1,4 @@
-ind eq (A : U₀) (x : A) : Π(_ : A) U₀
+ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
 
 ind list (A : U₀) : U₀

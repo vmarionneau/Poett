@@ -1,4 +1,4 @@
-ind eq (A : U₀) (x : A) : Π(_ : A) U₀
+ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
 
 ind nat : U₀
@@ -7,3 +7,32 @@ ind nat : U₀
 
 def add : nat → nat → nat
     := elim U₀ nat (λ (_ : nat), nat → nat) (λ (n : nat), n) (λ (_ : nat), λ (addRec : nat → nat), λ (n : nat),  succ (addRec n))
+
+def mul : nat → nat → nat
+    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (_ : nat), zero) (λ (_ : nat), λ (mulRec : nat → nat), λ (n : nat), add n (mulRec n))
+
+def add_zero_r : Π(n : nat) eq nat (add n zero) n
+    := elim Prop nat (λ (n : nat), eq nat (add n zero) n)
+            (refl nat zero)
+            (λ (n : nat),
+             λ (H : eq nat (add n zero) n),
+               elim Prop eq nat (add n zero)
+                    (λ (n₀ : nat),
+                     λ (_ : eq nat (add n zero) n₀),
+                       eq nat (succ (add n zero)) (succ n₀)
+                     )
+                     (refl nat (succ (add n zero)))
+                     n H
+            )
+
+def one : nat := succ zero
+def two : nat := succ one
+def three : nat := succ two
+
+#check (elim U₀ nat)
+#nf add one one
+#nf add one two
+#nf add three two
+#nf add three three
+#nf (λ (n : nat), add (succ n))
+#nf (λ (n : nat), add (succ n) zero)

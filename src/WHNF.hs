@@ -18,7 +18,7 @@ unravelAbs _ tm = ([], tm)
 
 whnf :: Tm → InCtx Tm
 whnf (App l []) = whnf l
-whnf (App l r@(hr:tr)) =
+whnf (App l r) =
   do
     l' ← whnf l
     case l' of
@@ -55,8 +55,8 @@ whnf (App l r@(hr:tr)) =
                 }
             else pure $ App (Elim lvl nameInd) r
           }
-      Cast l' _ -> whnf (App l' r)               
-      l' -> pure $ App l' r
+      Cast l' _ → whnf (App l' r)               
+      l' → pure $ App l' r
 whnf (Let _ _ tm1 tm2) = whnf (instantiate [tm1] tm2)
 whnf (Cast tm ty) =
   do tm' ← whnf tm
@@ -81,19 +81,21 @@ whnf (Ident s) =
       else pure $ Ident s
 whnf t = pure t
 
-hnf :: Tm -> InCtx Tm
+hnf :: Tm → InCtx Tm
 hnf tm = whnf tm >>= aux
   where
     aux (Pi name ty fam) =
       do
         ty' ← hnf ty
-        fam' ← hnf fam
-        pure $ Pi name ty' fam
+        name' ← addVar name ty'
+        fam' ← hnf $ instantiate [FVar name'] fam
+        closeProducts [name'] fam'
     aux (Abs name ty tm) =
       do
         ty' ← hnf ty
-        tm' ← hnf tm
-        pure $ Abs name ty' tm
+        name' ← addVar name ty'
+        tm' ← hnf $ instantiate [FVar name'] tm
+        closeAbs [name'] tm'
     aux (App tm args) =
       do
         tm' ← hnf tm
@@ -105,19 +107,21 @@ hnf tm = whnf tm >>= aux
         pure $ Cast tm' ty'
     aux t = pure t
 
-nf :: Tm -> InCtx Tm
+nf :: Tm → InCtx Tm
 nf tm = whnf tm >>= aux
   where
     aux (Pi name ty fam) =
       do
         ty' ← nf ty
-        fam' ← nf fam
-        pure $ Pi name ty' fam'
+        name' ← addVar name ty'
+        fam' ← nf $ instantiate [FVar name'] fam
+        closeProducts [name'] fam'
     aux (Abs name ty tm) =
       do
         ty' ← nf ty
-        tm' ← nf tm
-        pure $ Abs name ty' tm'
+        name' ← addVar name ty'
+        tm' ← nf $ instantiate [FVar name'] tm
+        closeAbs [name'] tm'
     aux (App tm args) =
       do
         tm' ← nf tm
@@ -130,7 +134,7 @@ nf tm = whnf tm >>= aux
         pure $ Cast tm' ty'
     aux t = pure t
 
-conv :: Tm -> Tm -> InCtx Bool
+conv :: Tm → Tm → InCtx Bool
 conv tm tm' =
   do
     tm0 ← whnf tm
@@ -141,12 +145,28 @@ conv tm tm' =
     aux (FVar name) (FVar name') = pure $ name == name'
     aux (U l) (U l') = pure $ l == l'
     aux (Ident s) (Ident s') = pure $ s == s'
-    aux (Pi _ ty fam) (Pi _ ty' fam') =
+    aux (Pi name ty fam) (Pi _ ty' fam') =
       do
-        b1 ←  conv ty ty'
-        b2 ← conv fam fam'
-        pure $ b1 && b2
-    aux (Abs _ _ tm) (Abs _ _ tm') = conv tm tm'
+        b1 ← conv ty ty'
+        if b1
+          then do
+          { name' ← addVar name ty
+          ; b2 ← conv (instantiate [FVar name'] fam) (instantiate [FVar name'] fam')
+          ; removeDecl name'
+          ; pure b2
+          }
+          else pure False
+    aux (Abs name ty tm) (Abs _ ty' tm') =
+      do
+        b1 ← conv ty ty'
+        if b1
+          then do
+          { name' ← addVar name ty
+          ; b2 ← conv (instantiate [FVar name'] tm) (instantiate [FVar name'] tm')
+          ; removeDecl name'
+          ; pure b2
+          }
+          else pure False
     aux (App tm args) (App tm' args') =
       do
         b1 ← conv tm tm'

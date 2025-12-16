@@ -130,13 +130,15 @@ check tm ty =
     u ← infer ty
     whnf u >>= asU
     tyinf ← infer  tm
-    b ← conv ty tyinf
+    ty' ← whnf ty
+    tyinf' ← whnf tyinf
+    b ← conv ty' tyinf'
     if b
       then pure ()
       else do
       sTm ← showTermCtx tm
-      sTy ← showTermCtx ty
-      sTyInf ← showTermCtx tyinf
+      sTy ← showTermCtx ty'
+      sTyInf ← showTermCtx tyinf'
       fail (sTm ++ " has type " ++ sTyInf ++ " but was expected to have type " ++ sTy)
 
 checkElim :: Ind Ty → Lvl → InCtx ()
