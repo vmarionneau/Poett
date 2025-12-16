@@ -341,17 +341,23 @@ showTermCtx (U lvl) = pure $ show lvl
 showTermCtx (Pi name ty fam) =
   do
     sTy ← showTermCtx ty
-    name' ← addVar name ty
-    sFam ← showTermCtx (instantiate [FVar name'] fam)
-    removeDecl name'
-    pure $ "Π(" ++ show name' ++ " : " ++ sTy ++ ") " ++ sFam 
+    let isBound = occurs 0 fam
+    let name' = if isBound then name else named "_"
+    name'' ← addVar name' ty
+    sFam ← showTermCtx (instantiate [FVar name''] fam)
+    removeDecl name''
+    if isBound
+      then pure $ "Π(" ++ show name'' ++ " : " ++ sTy ++ ") " ++ sFam
+      else pure $ sTy ++ " → " ++ sFam
 showTermCtx (Abs name ty tm) =
   do
     sTy ← showTermCtx ty
-    name' ← addVar name ty
-    sTm ← showTermCtx (instantiate [FVar name'] tm)
-    removeDecl name'
-    pure $ "λ (" ++ show name' ++ " : " ++ sTy ++ "), " ++ sTm
+    let isBound = occurs 0 tm
+    let name' = if isBound then name else named "_"
+    name'' ← addVar name' ty
+    sTm ← showTermCtx (instantiate [FVar name''] tm)
+    removeDecl name''
+    pure $ "λ (" ++ show name'' ++ " : " ++ sTy ++ "), " ++ sTm
 showTermCtx (App tm args) =
   do
     sTm ← bracketArg tm

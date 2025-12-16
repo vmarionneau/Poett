@@ -84,6 +84,7 @@ data Token
   | WHNFTok
   | Lambda
   | PiTok
+  | ArrowTok
   | LetTok
   | ElimTok
   | DefEq
@@ -276,6 +277,9 @@ lambda = notFollowed (string "λ" <|> string "fun") alphaNum >> pure Lambda
 piTok :: Parser (Stream Char) Token
 piTok = notFollowed (string "Π" <|> string "Pi") alphaNum >> pure PiTok
 
+arrowTok :: Parser (Stream Char) Token
+arrowTok = notFollowed (string "→" <|> string "->") alphaNum >> pure ArrowTok
+
 letTok :: Parser (Stream Char) Token
 letTok = notFollowed (string "let") alphaNum >> pure LetTok
 
@@ -325,6 +329,7 @@ token :: Parser (Stream Char) Token
 token = oneOf
         [ lambda
         , piTok
+        , arrowTok
         , defTok
         , indTok
         , checkTok
@@ -404,6 +409,15 @@ parseIdent =
       Identifier s → pure $ (s @< tok)
       _ → parserFail
 
+parseIdentStrict :: Parser (Scoped (Loc Token)) (Loc String)
+parseIdentStrict =
+  do
+    tok ← nextTok
+    case locData tok of
+      Identifier "_" → parserFail
+      Identifier s → pure $ (s @< tok)
+      _ → parserFail
+
 parseLvl :: Parser (Scoped (Loc Token)) (Loc Lvl)
 parseLvl =
   do
@@ -422,7 +436,7 @@ univ =
 ident :: Parser (Scoped (Loc Token)) (Loc PTm)
 ident =
   do
-    s ← parseIdent
+    s ← parseIdentStrict
     pure $ (PIdent (locData s)) @< s
 
 elim :: Parser (Scoped (Loc Token)) (Loc PTm)
@@ -435,15 +449,26 @@ elim =
 
 expr :: Parser (Scoped (Loc (Token))) (Loc PTm)
 expr =
+  (do
+    ty ← expr'
+    anchor $ pos ty
+    parseTok ArrowTok
+    fam ← locData <$> expr
+    deanchor
+    pure $ (PPi "_" (locData ty) fam) @< ty
+ ) <|> expr' 
+
+expr' :: Parser (Scoped (Loc (Token))) (Loc PTm)
+expr' =
   do
-    tm ← expr'
-    args ← (fmap locData) <$> many expr'
+    tm ← expr''
+    args ← (fmap locData) <$> many expr''
     if args == []
     then pure tm
     else pure $ (PApp (locData tm) args) @< tm
 
-expr' :: Parser (Scoped (Loc Token)) (Loc PTm)
-expr' = oneOf
+expr'' :: Parser (Scoped (Loc Token)) (Loc PTm)
+expr'' = oneOf
         [parseAbs
         , parsePi
         , univ

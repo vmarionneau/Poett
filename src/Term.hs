@@ -55,7 +55,6 @@ instantiateOff off vals (Let name ty tm1 tm2) = Let name (instantiateOff off val
 instantiateOff off vals (Cast tm ty) = Cast (instantiateOff off vals tm) (instantiateOff off vals ty)
 instantiateOff _ _ tm = tm
 
-
 instantiate :: [Tm] → Tm → Tm
 instantiate = instantiateOff 0
   
@@ -102,3 +101,12 @@ instance Show Tm where
       bracketArg tm@(App _ _) = "(" ++ show tm ++ ")"
       bracketArg tm@(Let _ _ _ _) = "(" ++ show tm ++ ")"
       bracketArg tm = show tm
+
+occurs :: Int → Tm → Bool
+occurs i (BVar j) = i == j
+occurs i (Pi _ ty fam) = occurs i ty || occurs (i + 1) fam
+occurs i (Abs _ ty tm) = occurs i ty || occurs (i + 1) tm
+occurs i (Let _ ty tm1 tm2) = occurs i ty || occurs i tm1 || occurs (i + 1) tm2
+occurs i (Cast tm ty) = occurs i tm || occurs i ty 
+occurs i (App tm args) = occurs i tm || any (occurs i) args
+occurs _ _ = False

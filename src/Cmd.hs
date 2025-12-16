@@ -2,10 +2,8 @@
 
 module Cmd (module Cmd) where
 
-import Name
 import Syntax
 import Term
-import Ind
 import Ctx
 import WHNF
 import Typecheck

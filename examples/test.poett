@@ -1,0 +1,48 @@
+ind eq (A : U₀) (x : A) : Π(_ : A) U₀
+| refl : eq A x x
+
+ind nat : U₀
+| zero : nat
+| succ : nat → nat
+
+ind list (A : U₀) : U₀
+| nil : list A
+| cons : Π(h : A) Π(t : list A) list A
+
+ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
+| acc : Π(x : A) Π(below : Π(y : A) R y x → Acc A R y) Acc A R x
+
+def one : nat
+    := succ zero
+
+def two : nat
+    := succ one
+
+def addTwo : Π(_ : nat) nat
+    := λ (n : nat), succ (succ n)
+
+def add : Π(_ : nat) Π(_ : nat) nat
+    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (n : nat), n) (λ (_ : nat), λ (addRec : nat → nat), λ (n : nat),  succ (addRec n))
+
+def foo := λ (n : nat), λ (n : nat), n
+
+#fail ind negative : U₀
+      | negIntro : (negative → nat) → negative
+
+#fail ind nonStrict : U₀
+      | nonStrictIntro : ((nonStrict → nat) → nat) → nonStrict
+
+#fail ind wrong : U₀
+      | wrongIntro : nat → nat
+
+#fail ind wrongPars (A : U₀) (B : U₀) : U₀
+      | wrongParsIntro : wrongPars B A
+
+#print add
+#nf (add one one)
+#check (refl nat two : eq nat (add one one) two)
+#fail
+  #check (refl nat two : eq nat (add one one) one)
+#check foo
+#check (foo : nat → nat → nat)
+#print foo
