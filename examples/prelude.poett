@@ -6,7 +6,7 @@ ind unit : U₀
 | tt : unit
 
 ind top : Prop
-| truth : top
+| I : top
 
 ind bot : Prop
 
@@ -17,10 +17,6 @@ ind sum (A : U₀) (B : U₀) : U₀
 | inl : A → sum A B
 | inr : B → sum A B
 
-ind bool : U₀
-| true : bool
-| false : bool
-
 ind sig (A : U₀) (B : A → U₀) : U₀
 | pr : Π(a : A) B a → sig A B 
 
@@ -30,3 +26,19 @@ ind ex (A : Prop) (B : A → Prop) : Prop
 ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
 
+ind bool : U₀
+| true : bool
+| false : bool
+
+def neq : Π(A : U₀) A → A → Prop
+    := λ (A : U₀),
+       λ (x : A),
+       λ (y : A),
+       not (eq A x y)
+
+def true-ne-false-fam : bool → Prop
+    := elim U₀ bool (λ (_ : bool), Prop) top bot
+
+def true-ne-false : neq bool true false
+    := λ (p : eq bool true false),
+         elim Prop eq bool true (λ (b : bool), λ (_ : eq bool true b), true-ne-false-fam b) I false p
