@@ -31,7 +31,7 @@ instance Monad (Parser a) where
 ma << mb =
   do
     a ← ma
-    mb
+    void mb
     pure a
 
 data Stream a = Stream { streamData :: [a], streamRow :: Int, streamCol :: Int }
@@ -134,7 +134,7 @@ next =
     cs ← getStreamData
     case cs of
       [] → parserFail
-      (c:cs) → (if c == '\n' then nextRow else nextCol) >> setStreamData cs >> pure c
+      (c:cs') → (if c == '\n' then nextRow else nextCol) >> setStreamData cs' >> pure c
 
 char :: Char → Parser (Stream Char) Char
 char c =
@@ -332,7 +332,7 @@ comment =
 importTok :: Parser (Stream Char) Token
 importTok =
   do
-    notFollowed (string "#import") alphaNum
+    void $ notFollowed (string "#import") alphaNum
     void $ hwhitespace
     beg ← some alphaNum
     rest ← many (alphaNum <|> char '/' <|> char '.')
@@ -492,7 +492,7 @@ expr =
   (do
     ty ← expr'
     anchor $ pos ty
-    parseTok ArrowTok
+    void $ parseTok ArrowTok
     fam ← locData <$> expr
     deanchor
     pure $ (PPi "_" (locData ty) fam) @< ty

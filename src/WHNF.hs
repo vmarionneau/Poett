@@ -25,9 +25,9 @@ whnf (App l r) =
       Abs _ _ _ →
         let (names, tm) = unravelAbs (length r) l' in
         let args = take (length names) r in
-        let rem = drop (length names) r in
-          whnf (App (instantiate (reverse args) tm) rem)
-      App l' r' → whnf (App l' (r' ++ r)) 
+        let remain = drop (length names) r in
+          whnf (App (instantiate (reverse args) tm) remain)
+      App l'' r' → whnf (App l'' (r' ++ r)) 
       Elim lvl nameInd →
         do
           { ind ← getInd nameInd
@@ -55,8 +55,8 @@ whnf (App l r) =
                 }
             else pure $ App (Elim lvl nameInd) r
           }
-      Cast l' _ → whnf (App l' r)               
-      l' → pure $ App l' r
+      Cast l'' _ → whnf (App l'' r)
+      _ → pure $ App l' r
 whnf (Let _ _ tm1 tm2) = whnf (instantiate [tm1] tm2)
 whnf (Cast tm ty) =
   do tm' ← whnf tm
@@ -90,21 +90,21 @@ hnf tm = whnf tm >>= aux
         name' ← addVar name ty'
         fam' ← hnf $ instantiate [FVar name'] fam
         closeProducts [name'] fam'
-    aux (Abs name ty tm) =
+    aux (Abs name ty tm') =
       do
         ty' ← hnf ty
         name' ← addVar name ty'
-        tm' ← hnf $ instantiate [FVar name'] tm
-        closeAbs [name'] tm'
-    aux (App tm args) =
+        tm'' ← hnf $ instantiate [FVar name'] tm'
+        closeAbs [name'] tm''
+    aux (App tm' args) =
       do
-        tm' ← hnf tm
-        pure $ App tm' args
-    aux (Cast tm ty) =
+        tm'' ← hnf tm'
+        pure $ App tm'' args
+    aux (Cast tm' ty) =
       do
         ty' ← hnf ty
-        tm' ← hnf tm
-        pure $ Cast tm' ty'
+        tm'' ← hnf tm'
+        pure $ Cast tm'' ty'
     aux t = pure t
 
 nf :: Tm → InCtx Tm
@@ -116,30 +116,30 @@ nf tm = whnf tm >>= aux
         name' ← addVar name ty'
         fam' ← nf $ instantiate [FVar name'] fam
         closeProducts [name'] fam'
-    aux (Abs name ty tm) =
+    aux (Abs name ty tm') =
       do
         ty' ← nf ty
         name' ← addVar name ty'
-        tm' ← nf $ instantiate [FVar name'] tm
-        closeAbs [name'] tm'
-    aux (App tm args) =
+        tm'' ← nf $ instantiate [FVar name'] tm'
+        closeAbs [name'] tm''
+    aux (App tm' args) =
       do
-        tm' ← nf tm
+        tm'' ← nf tm'
         args' ← mapM nf args
-        pure $ App tm' args'
-    aux (Cast tm ty) =
+        pure $ App tm'' args'
+    aux (Cast tm' ty) =
       do
         ty' ← nf ty
-        tm' ← nf tm
-        pure $ Cast tm' ty'
+        tm'' ← nf tm'
+        pure $ Cast tm'' ty'
     aux t = pure t
 
 conv :: Tm → Tm → InCtx Bool
-conv tm tm' =
+conv tml tmr =
   do
-    tm0 ← whnf tm
-    tm'0 ← whnf tm'
-    aux tm0 tm'0
+    tml' ← whnf tml
+    tmr' ← whnf tmr
+    aux tml' tmr'
   where
     aux (BVar i) (BVar j) = pure $ i == j
     aux (FVar name) (FVar name') = pure $ name == name'
@@ -173,7 +173,7 @@ conv tm tm' =
         let b2 = length args == length args'
         b3s ← mapM (uncurry conv) $ zip args args'
         pure $ b1 && b2 && all id b3s 
-    aux (Cast tm ty) (Cast tm' ty') = conv tm tm'
+    aux (Cast tm _) (Cast tm' _) = conv tm tm'
     aux (Constr nameInd i) (Constr nameInd' j) = pure $ i == j && nameInd == nameInd'
     aux (Elim lvl nameInd) (Elim lvl' nameInd') = pure $ lvl == lvl' && nameInd == nameInd'
     aux _ _ = pure False

@@ -97,10 +97,10 @@ instance Show Tm where
   show (App tm args) = bracketArg tm ++ " " ++ (intercalate " " $ bracketArg <$> args)
     where
       bracketArg :: Tm -> String
-      bracketArg tm@(Abs _ _ _) = "(" ++ show tm ++ ")"
-      bracketArg tm@(App _ _) = "(" ++ show tm ++ ")"
-      bracketArg tm@(Let _ _ _ _) = "(" ++ show tm ++ ")"
-      bracketArg tm = show tm
+      bracketArg tm'@(Abs _ _ _) = "(" ++ show tm' ++ ")"
+      bracketArg tm'@(App _ _) = "(" ++ show tm' ++ ")"
+      bracketArg tm'@(Let _ _ _ _) = "(" ++ show tm' ++ ")"
+      bracketArg tm' = show tm'
 
 occurs :: Int → Tm → Bool
 occurs i (BVar j) = i == j

@@ -28,8 +28,8 @@ elimFam lvl ind paramNames =
     let ty = Pi dummy resIndTy (U lvl)
     closeProducts indicesNames ty
 
-csArgType :: Ind Ty → [Name] → [Name] → CsArg Ty → InCtx Ty
-csArgType ind paramNames csArgNames arg =
+csArgType :: [Name] → [Name] → CsArg Ty → InCtx Ty
+csArgType paramNames csArgNames arg =
   do
     let args = instantiateTele (FVar <$> (csArgNames ++ paramNames)) $ argArgs arg
     argNames ← addTelescope args
@@ -43,11 +43,11 @@ csRecArgMotive ind paramNames famName csArgNames nonrec arg =
     argNames ← addTelescope args
     entry ← getLocal nonrec
     case asApp (snd $ (unravelPi (-1) $ entryType entry)) of
-      (Ident nameInd, args) →
+      (Ident nameInd, args') →
         if nameInd /= indName ind
         then fail "Return type of argument labeled recursive is not recursive"
         else do
-          { let indices = instantiate (FVar <$> argNames) <$> drop (indParamLength ind) args
+          { let indices = instantiate (FVar <$> argNames) <$> drop (indParamLength ind) args'
           ; let resRecTy = App (FVar famName) (indices ++ [App (FVar nonrec) $ FVar <$> reverse argNames])
           ; closeProducts argNames resRecTy
           }
@@ -66,7 +66,7 @@ constrMotive ind paramNames famName i =
         aux [] csArgNames allArgNames = pure (csArgNames, allArgNames)
         aux ((argName, arg):args) csArgNames allArgNames =
           do
-            nonRecType ← csArgType ind paramNames csArgNames arg
+            nonRecType ← csArgType paramNames csArgNames arg
             nonRec ← addVar argName nonRecType
             if argRec arg then
               do
@@ -111,8 +111,8 @@ constrElimRule ind lvl i =
     paramNames ← addTelescope params
     famTy ← elimFam lvl ind paramNames
     famName ← addVar (Name "T" (-1)) famTy
-    motives ← mapM (\ i → (constrMotive ind paramNames famName i) >>=
-                     \ ty → getConstr ind i >>=
+    motives ← mapM (\ j → (constrMotive ind paramNames famName j) >>=
+                     \ ty → getConstr ind j >>=
                       \ cs → pure (Name ("P" ++ csName cs) (-1), ty))
               $ reverse  [0..length (indConstructors ind) - 1]
     motiveNames ← addVars motives
@@ -126,7 +126,7 @@ constrElimRule ind lvl i =
         aux paramNames famName motiveNames ((argName, arg):args) csArgNames tms =
           let aux' = aux paramNames famName motiveNames in
           do
-            nonRecType ← csArgType ind paramNames csArgNames arg
+            nonRecType ← csArgType paramNames csArgNames arg
             nonRec ← addVar argName nonRecType
             if argRec arg then
               do

@@ -59,3 +59,18 @@ def wlistToList : Π(A : U₀) wlist A → list A
                   (λ (h : A), λ (_ : unit → wlist A), λ (t : unit → list A), cons A h (t tt))
              )
 
+def foo : list unit
+    := cons unit tt (cons unit tt (nil unit))
+
+def bar : wlist unit
+    := listToWlist unit foo
+
+def oof : list unit
+    := wlistToList unit bar
+
+
+#check (refl (list unit) foo : eq (list unit) foo oof)
+
+#nf foo
+#nf bar
+#nf oof

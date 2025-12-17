@@ -7,7 +7,6 @@ module Cmd (module Cmd) where
 import Syntax
 import Term
 import Ctx
-import Syntax
 import Parser
 import WHNF
 import Typecheck

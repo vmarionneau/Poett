@@ -8,9 +8,7 @@ import Term
 import Ctx
 import Elim
 import WHNF
-import Data.Maybe (fromMaybe)
-import Control.Monad (foldM)
-import qualified Data.Map as Map
+import Control.Monad (foldM, void)
 
 piLvl :: Lvl → Lvl → Lvl
 piLvl _ Prop = Prop
@@ -53,7 +51,7 @@ constrType ind i =
     let params = indParams ind
     paramNames ← addTelescope params
     let args = csArgs cst
-    argNames ← aux paramNames (csArgs cst) []
+    argNames ← aux paramNames args []
     closeProducts (argNames ++ paramNames)
       $ App (Ident (indName ind))
       $ (FVar <$> reverse paramNames)
@@ -63,7 +61,7 @@ constrType ind i =
         aux _ [] csArgNames = pure csArgNames
         aux paramNames ((argName, arg):args) csArgNames =
           do
-            argType ← csArgType ind paramNames csArgNames arg
+            argType ← csArgType paramNames csArgNames arg
             argName' ← addVar argName argType
             aux paramNames args (argName':csArgNames)
             
@@ -87,8 +85,8 @@ infer (Let name ty tm1 tm2) =
   do
     check tm1 ty
     letVar ← addLocal name ty tm1
-    ty ← infer $ instantiate [FVar letVar] tm2
-    unfoldLocal letVar ty
+    tyinf ← infer $ instantiate [FVar letVar] tm2
+    unfoldLocal letVar tyinf
 infer (Ident s) =
   do
     bdef ← isDef s
@@ -97,8 +95,7 @@ infer (Ident s) =
       else getInd s >>= indType
 infer (Abs name ty tm) =
   do
-    u ← infer ty
-    whnf u >>= asU
+    ensureType ty
     var ← addVar name ty
     tyRes ← infer $ instantiate [FVar var] tm
     removeDecl var
@@ -108,7 +105,7 @@ infer (App tm args) =
     ty ← infer tm
     foldM (\ aty arg →
               do
-                (name, tyarg, tyres) ← whnf aty >>= asPi
+                (_, tyarg, tyres) ← whnf aty >>= asPi
                 check arg tyarg
                 pure $ instantiate [arg] tyres
           ) ty args
@@ -127,8 +124,7 @@ infer (BVar _) = fail "Can't infer type of bound variables, convert them to free
 check :: Tm → Ty → InCtx ()
 check tm ty =
   do
-    u ← infer ty
-    whnf u >>= asU
+    ensureType ty
     tyinf ← infer  tm
     ty' ← whnf ty
     tyinf' ← whnf tyinf
@@ -156,15 +152,16 @@ checkElim ind lvl =
                  { let params = indParams ind
                  ; paramNames ← addTelescope params
                  ; let args = csArgs cst
-                 ; argNames ← aux paramNames (csArgs cst) []
+                 ; argNames ← aux paramNames args []
                  ; let retIndices = instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst
                  ; normIndices ← mapM whnf retIndices
-                 ; mapM (\ name → 
+                 ; void $
+                   mapM (\ name → 
                            do
                              { ty ← infer (FVar name)
                              ; u ← infer ty
-                             ; lvl ← whnf u >>= asU
-                             ; if lvl == Prop
+                             ; lvl' ← whnf u >>= asU
+                             ; if lvl' == Prop
                                then pure ()
                                else if FVar name `elem` normIndices then pure ()
                                else fail msg
@@ -178,7 +175,7 @@ checkElim ind lvl =
     aux _ [] csArgNames = pure csArgNames
     aux paramNames ((argName, arg):args) csArgNames =
       do
-        argType ← csArgType ind paramNames csArgNames arg
+        argType ← csArgType paramNames csArgNames arg
         argName' ← addVar argName argType
         aux paramNames args (argName':csArgNames)
 
@@ -186,5 +183,4 @@ ensureType :: Ty → InCtx ()
 ensureType ty =
   do
     u ← infer ty
-    whnf u >>= asU
-    pure ()
+    void $ whnf u >>= asU

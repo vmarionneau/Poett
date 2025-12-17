@@ -1,6 +1,5 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
-import Parser
 import Cmd
 import Ctx
 import System.Environment

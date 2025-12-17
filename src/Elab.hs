@@ -22,13 +22,11 @@ toBound (PIdent s) =
     pure <$> fromMaybe (PIdent s) $ PBVar <$> s `elemIndex` names
 toBound (PPi s ty fam) =
   do
-    names ← R.ask
     ty' ← toBound ty
     fam' ← R.local (s:) (toBound fam)
     pure $ PPi s ty' fam'
 toBound (PAbs s ty tm) =
   do
-    names ← R.ask
     ty' ← toBound ty
     tm' ← R.local (s:) (toBound tm)
     pure $ PAbs s ty' tm'
@@ -39,7 +37,6 @@ toBound (PApp tm args) =
     pure $ PApp tm' args'
 toBound (PLet s ty tm body) =
   do
-    names ← R.ask
     ty' ← toBound ty
     tm' ← toBound tm
     body' ← R.local (s:) (toBound body)
@@ -136,7 +133,7 @@ abstractArity pNames ar =
     ty ← closeProducts argNames $ U (arSort ar)
     let ty' = abstract pNames ty
     case unravelPi (-1) ty' of
-      (args, U lvl) → pure $ Arity args lvl
+      (args', U lvl) → pure $ Arity args' lvl
       _ → fail "Unreachable error has been reached"
 
 -- Note : This should be run on the output of toArity and not on the one of abstractArity
@@ -156,27 +153,27 @@ toCsArgs nameInd pNames args =
     ty ← closeProducts argNames $ Ident "Dummy"
     let ty' = abstract pNames ty
     let (args'', _) = unravelPi (-1) ty'
-    pure $ zipWith (\ (name, ty) isRec → let (args, body) = unravelPi (-1) ty in (name, CsArg args body isRec)) args'' (reverse recs)
+    pure $ zipWith (\ (name, ty'') isRec → let (args''', body) = unravelPi (-1) ty'' in (name, CsArg args''' body isRec)) args'' (reverse recs)
   where
-    aux :: [(Name,Ty)] → [(Name, Bool)] → InCtx [(Name, Bool)]
+    aux :: [(Name, Ty)] → [(Name, Bool)] → InCtx [(Name, Bool)]
     aux [] names = pure names
-    aux ((name,ty):args) names =
+    aux ((name,ty):args') names =
       do
         let ty' = instantiate ((FVar . fst) <$> names) ty
         ensureType ty'
         nfTy ← nf ty'
         isRec ← checkRec nfTy
         name' ← addVar name ty'
-        aux args ((name', isRec):names)
+        aux args' ((name', isRec):names)
 
     checkRec (Pi _ ty fam) =
       do
         checkAbsence ty
         checkRec fam
-    checkRec (App tm args) =
+    checkRec (App tm args') =
       do
-        mapM checkAbsence args
-        let pars = take (length pNames) args
+        void $ mapM checkAbsence args'
+        let pars = take (length pNames) args'
         if tm == Ident nameInd then
           if pars /= (FVar <$> (reverse pNames)) then
             fail $ "Parameters should be constant inside types of constructors for " ++ nameInd
@@ -197,7 +194,7 @@ toCsArgs nameInd pNames args =
       else pure ()
     checkAbsence (Pi _ ty fam) = checkAbsence ty >> checkAbsence fam
     checkAbsence (Abs _ ty tm) = checkAbsence ty >> checkAbsence tm
-    checkAbsence (App tm args) = checkAbsence tm >> mapM checkAbsence args >> pure ()
+    checkAbsence (App tm args') = checkAbsence tm >> mapM checkAbsence args' >> pure ()
     checkAbsence (Let _ ty tm body) = checkAbsence ty >> checkAbsence tm >> checkAbsence body
     checkAbsence (Cast tm ty) = checkAbsence tm >> checkAbsence ty
     checkAbsence _ = pure ()

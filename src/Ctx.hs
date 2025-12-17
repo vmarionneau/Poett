@@ -7,7 +7,6 @@ import Term
 import Ind
 import qualified Data.Map as Map
 import Data.Map (( !? ))
-import Data.Maybe (isJust, isNothing)
 import Data.List (find, partition, elemIndex)
 import Control.Monad (foldM)
 
@@ -158,7 +157,7 @@ isInd s =
     inds ← getIndCtx
     case inds !? s of
       Nothing → pure False
-      Just ind → pure True
+      Just _ → pure True
 
 isConstr :: String → InCtx Bool
 isConstr s =
@@ -305,7 +304,6 @@ closeProducts names ty =
   do
     lctx ← getLocalCtx
     let (vars, lctx') = partition (\ entry → entryName entry `elem` names) lctx
-    let names' = entryName <$> vars
     setLocalCtx lctx'
     pure $ foldl (\ acc entry → Pi (entryName entry) (entryType entry) (abstract [entryName entry] acc)) ty vars
 
@@ -314,7 +312,6 @@ closeAbs names tm =
   do
     lctx ← getLocalCtx
     let (vars, lctx') = partition (\ entry → entryName entry `elem` names) lctx
-    let names' = entryName <$> vars
     setLocalCtx lctx'
     pure $ foldl (\ acc entry → Abs (entryName entry) (entryType entry) (abstract [entryName entry] acc)) tm vars
 
@@ -358,6 +355,16 @@ showTermCtx (Abs name ty tm) =
     sTm ← showTermCtx (instantiate [FVar name''] tm)
     removeDecl name''
     pure $ "λ (" ++ show name'' ++ " : " ++ sTy ++ "), " ++ sTm
+showTermCtx (Let name ty tm body) =
+  do
+    sTy ← showTermCtx ty
+    sTm ← showTermCtx tm
+    let isBound = occurs 0 body
+    let name' = if isBound then name else named "_"
+    name'' ← addVar name' ty
+    sBody ← showTermCtx (instantiate [FVar name''] body)
+    removeDecl name''
+    pure $ "let " ++ show name'' ++ " : " ++ sTy ++ " := " ++ sTm ++ " in " ++ sBody
 showTermCtx (App tm args) =
   do
     sTm ← bracketArg tm
@@ -365,11 +372,11 @@ showTermCtx (App tm args) =
     pure $ sTm ++ " " ++ (intercalate " " $ sArgs)
     where
       bracketArg :: Tm → InCtx String
-      bracketArg tm@(Pi _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
-      bracketArg tm@(Abs _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
-      bracketArg tm@(App _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
-      bracketArg tm@(Let _ _ _ _) = showTermCtx tm >>= \ sTm → pure $ "(" ++ sTm ++ ")"
-      bracketArg tm = showTermCtx tm
+      bracketArg tm'@(Pi _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm'@(Abs _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm'@(App _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm'@(Let _ _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm' = showTermCtx tm'
 showTermCtx (Ident name) = pure name
 showTermCtx (Cast tm ty) =
   do

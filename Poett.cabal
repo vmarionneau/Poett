@@ -5,13 +5,13 @@ cabal-version: 2.2
 -- see: https://github.com/sol/hpack
 
 name:           Poett
-version:        0.1.0.0
+version:        1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/Poett#readme>
 homepage:       https://github.com/vmarionneau/Poett#readme
 bug-reports:    https://github.com/vmarionneau/Poett/issues
 author:         Virgil Marionneau
-maintainer:     example@example.com
-copyright:      2025 Author name here
+maintainer:     marionneau.virgil@gmail.com
+copyright:      2025 Virgil Marionneau
 license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
