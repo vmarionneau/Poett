@@ -162,7 +162,12 @@ processFile fileName ctx =
     file ← readFile fileName
     ctx' ← processInput file ctx
     case ctx' of
-      Left err → pure $ Left ("Import of file '" ++ fileName ++ "' has failed with error : " ++ err)
+      Left err →
+        let err' = "Import of file '" ++ fileName ++ "' has failed with error : " ++ err
+        in do
+          { putStrLn err'
+          ; pure $ Left err'
+          } 
       Right ctx'' → pure $ Right ctx''
 
 repl :: IO ()

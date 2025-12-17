@@ -227,7 +227,7 @@ indexDigit =
     readIndexDigit c
 
 alphaNum :: Parser (Stream Char) Char
-alphaNum = alpha <|> num <|> index
+alphaNum = alpha <|> num <|> index <|> char '-'
 
 identifier :: Parser (Stream Char) Token
 identifier =
@@ -312,6 +312,20 @@ printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
 failTok :: Parser (Stream Char) Token
 failTok = notFollowed (string "#fail") alphaNum >> pure FailTok
 
+munchLine :: Parser (Stream Char) ()
+munchLine =
+  do
+    c ← next
+    if c == '\n'
+      then pure ()
+      else munchLine
+
+comment :: Parser (Stream Char) ()
+comment =
+  do
+    void $ string "--"
+    munchLine
+
 importTok :: Parser (Stream Char) Token
 importTok =
   do
@@ -382,7 +396,7 @@ tokenPos =
     pure $ tok @: p
 
 lexer :: Parser (Stream Char) [Loc Token]
-lexer = many (tokenPos << whitespace)
+lexer = many ((many comment) >> tokenPos << whitespace)
 
 anchor :: Pos → Parser (Scoped (Loc a)) ()
 anchor p =

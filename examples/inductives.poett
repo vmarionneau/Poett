@@ -1,5 +1,10 @@
-ind eq (A : U₀) (x : A) : A → Prop
-| refl : eq A x x
+#import examples/equality
+
+ind sig (A : U₀) (B : A → U₀) : U₀
+| pr : Π(a : A) B a → sig A B 
+
+ind ex (A : Prop) (B : A → Prop) : Prop
+| prEx : Π(a : A) B a → ex A B 
 
 ind list (A : U₀) : U₀
 | nil : list A
@@ -15,6 +20,34 @@ ind empty : U₀
 
 ind unit : U₀
 | tt : unit
+
+-- Extensional equality on W-types
+def W-eq : Π(A : U₀) Π(B : A → U₀) W A B → W A B → Prop
+    := λ (A : U₀),
+       λ (B : A → U₀),
+         elim U₀ W A B (λ (_ : W A B), W A B → Prop)
+              (λ (a : A),
+               λ (f : B a → W A B),
+               λ (ih : B a → W A B → Prop),
+                     elim U₀ W A B (λ (_ : W A B), Prop)
+                          (λ (a₀ : A),
+                           λ (g : B a₀ → W A B),
+                           λ (_ : B a₀ → Prop),
+                             ex (eq A a a₀) (λ (p : eq A a a₀), Π(b : B a) ih b (g (elim U₀ eq A a (λ (a₁ : A), λ (_ : eq A a a₁), B a₁) b a₀ p)))
+                           )
+              )
+
+def W-eq-refl : Π(A : U₀) Π(B : A → U₀) Π(w : W A B) W-eq A B w w
+    := λ (A : U₀),
+       λ (B : A → U₀),
+         elim Prop W A B (λ (w : W A B), W-eq A B w w)
+              (λ (a : A),
+               λ (f : B a → W A B),
+               λ (ih : Π(b : B a) W-eq A B (f b) (f b)),
+                 prEx (eq A a a)
+                      (λ (p : eq A a a), Π(b : B a) W-eq A B (f b) (f (elim U₀ eq A a (λ (a₀ : A), λ (_ : eq A a a₀), B a₀) b a p)))
+                      (refl A a) ih
+              )
 
 ind sum (A : U₀) (B : U₀) : U₀
 | inl : A → sum A B

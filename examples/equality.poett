@@ -1,0 +1,24 @@
+ind eq (A : U₀) (x : A) : A → Prop
+| refl : eq A x x
+
+def sym : Π(A : U₀) Π(x : A) Π(y : A) eq A x y → eq A y x
+    := λ (A : U₀),
+       λ (x : A),
+       elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq A y x)
+            (refl A x)
+
+def trans : Π(A : U₀) Π(x : A) Π(y : A) Π(z : A) eq A x y → eq A y z → eq A x z
+    := λ (A : U₀),
+       λ (x : A),
+       λ (y : A),
+       λ (z : A),
+       elim Prop eq A x (λ (y₀ : A), λ (_ : eq A x y₀), eq A y₀ z → eq A x z)
+            (λ (p : eq A x z), p) y
+
+def ap : Π (A : U₀) Π (B : U₀) Π (f : A → B) Π (x : A) Π (y : A) eq A x y → eq B (f x) (f y)
+    := λ (A : U₀),
+       λ (B : U₀),
+       λ (f : A → B),
+       λ (x : A),
+         elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq B (f x) (f y))
+              (refl B (f x))
