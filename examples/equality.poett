@@ -1,5 +1,6 @@
-ind eq (A : U₀) (x : A) : A → Prop
-| refl : eq A x x
+-- Facts about equality
+
+#import examples/prelude
 
 def sym : Π(A : U₀) Π(x : A) Π(y : A) eq A x y → eq A y x
     := λ (A : U₀),

@@ -1,0 +1,32 @@
+-- Simple Poett prelude
+
+ind empty : U₀
+
+ind unit : U₀
+| tt : unit
+
+ind top : Prop
+| truth : top
+
+ind bot : Prop
+
+def not : Prop → Prop
+    := λ (A : Prop), A → bot
+
+ind sum (A : U₀) (B : U₀) : U₀
+| inl : A → sum A B
+| inr : B → sum A B
+
+ind bool : U₀
+| true : bool
+| false : bool
+
+ind sig (A : U₀) (B : A → U₀) : U₀
+| pr : Π(a : A) B a → sig A B 
+
+ind ex (A : Prop) (B : A → Prop) : Prop
+| prEx : Π(a : A) B a → ex A B 
+
+ind eq (A : U₀) (x : A) : A → Prop
+| refl : eq A x x
+

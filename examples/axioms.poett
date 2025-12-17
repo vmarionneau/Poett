@@ -1,5 +1,4 @@
 #import examples/equality
 
 axiom funext : Π(A : U₀) Π(B : A → U₀) Π(f : Π(x : A) B x) Π(g : Π(x : A) B x) (Π(x : A) (eq (B x) (f x) (g x))) → eq (Π(x : A) B x) f g
-
-#print funext
+axiom proof-irrelevance : Π(P : Prop) Π(H₀ : P) Π(H₁ : P) eq P H₀ H₁

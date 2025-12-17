@@ -1,12 +1,5 @@
+-- Natural numbers
 #import examples/equality
-
-ind top : Prop
-| truth : top
-
-ind bot : Prop
-
-def not : Prop → Prop
-    := λ (A : Prop), A → bot
 
 ind nat : U₀
 | zero : nat
@@ -18,7 +11,7 @@ def add : nat → nat → nat
 def mul : nat → nat → nat
     := elim U₀ nat (λ (_ : nat), nat → nat) (λ (_ : nat), zero) (λ (_ : nat), λ (mulRec : nat → nat), λ (n : nat), add n (mulRec n))
 
-def add_zero_r : Π(n : nat) eq nat (add n zero) n
+def add-zero-r : Π(n : nat) eq nat (add n zero) n
     := elim Prop nat (λ (n : nat), eq nat (add n zero) n)
             (refl nat zero)
             (λ (n : nat),
@@ -26,7 +19,7 @@ def add_zero_r : Π(n : nat) eq nat (add n zero) n
                ap nat nat succ (add n zero) n ih
             )
 
-def add_succ_r : Π(n : nat) Π(m : nat) eq nat (add n (succ m)) (succ (add n m))
+def add-succ-r : Π(n : nat) Π(m : nat) eq nat (add n (succ m)) (succ (add n m))
     := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n (succ m)) (succ (add n m)))
             (λ (m : nat), refl nat (succ m))
             (λ (n : nat),
@@ -35,17 +28,17 @@ def add_succ_r : Π(n : nat) Π(m : nat) eq nat (add n (succ m)) (succ (add n m)
                ap nat nat succ (add n (succ m)) (succ (add n m)) (ih m)
             )
 
-def add_comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
+def add-comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
     := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n m) (add m n))
-                 (λ (m : nat), sym nat (add m zero) m (add_zero_r m))
+                 (λ (m : nat), sym nat (add m zero) m (add-zero-r m))
                  (λ (n : nat),
                   λ (ih : Π(m : nat) eq nat (add n m) (add m n)),
                   λ (m : nat),
                     trans nat (succ (add n m)) (succ (add m n)) (add m (succ n))
                           (ap nat nat succ (add n m) (add m n) (ih m))
-                          (sym nat (add m (succ n)) (succ (add m n)) (add_succ_r m n))
+                          (sym nat (add m (succ n)) (succ (add m n)) (add-succ-r m n))
                  )
-def add_assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)
+def add-assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)
     := elim Prop nat (λ (n : nat), Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k))
        (λ (m : nat), λ (k : nat), refl nat (add m k))
        (λ (n : nat),
@@ -55,12 +48,12 @@ def add_assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (ad
         ap nat nat succ (add n (add m k)) (add (add n m) k) (ih m k)
        )
 
-def bot_above_succ : nat → Prop
+def bot-above-succ : nat → Prop
     := elim U₀ nat (λ (_ : nat), Prop) top (λ (_ : nat), λ (_ : Prop), bot)
     
-def zero_neq_succ : Π(n : nat) not (eq nat zero (succ n))
+def zero-neq-succ : Π(n : nat) not (eq nat zero (succ n))
     := λ (n : nat),
        λ (p : eq nat zero (succ n)),
          elim Prop eq nat zero
-              (λ (n₀ : nat), λ (_ : eq nat zero n₀), bot_above_succ n₀)
+              (λ (n₀ : nat), λ (_ : eq nat zero n₀), bot-above-succ n₀)
               truth (succ n) p

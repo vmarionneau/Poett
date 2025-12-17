@@ -53,9 +53,10 @@ processCheck :: PTm → InCtx (IO ())
 processCheck ptm =
   do
     tm ← toTerm ptm
+    sTm ← showTermCtx tm
     ty ← infer tm
     sTy ← showTermCtx ty
-    pure $ putStrLn sTy
+    pure $ putStrLn (sTm ++ " : " ++ sTy)
 
 processPrint :: String → InCtx (IO ())
 processPrint name =

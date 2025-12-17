@@ -1,11 +1,4 @@
-#import examples/equality
-
-ind list (A : U₀) : U₀
-| nil : list A
-| cons : Π(h : A) Π(t : list A) list A
-
-ind Acc (A : U₀) (R : A → A → Prop) : A → Prop 
-| acc : Π(x : A) Π(below : Π(y : A) R y x → Acc A R y) Acc A R x
+#import examples/inductives
 
 ind W (A : U₀) (B : A → U₀) : U₀
 | node : Π(a : A) Π (f : B a → W A B) W A B
@@ -66,29 +59,3 @@ def wlistToList : Π(A : U₀) wlist A → list A
                   (λ (h : A), λ (_ : unit → wlist A), λ (t : unit → list A), cons A h (t tt))
              )
 
-def foo : list unit
-    := cons unit tt (cons unit tt (nil unit))
-
-def bar : wlist unit
-    := listToWlist unit foo
-
-def oof : list unit
-    := wlistToList unit bar
-
-#nf foo
-#nf bar
-#nf oof
-
-#check (refl (list unit) foo : eq (list unit) foo oof)
-
-#fail ind negative : U₀
-      | negIntro : (negative → nat) → negative
-
-#fail ind nonStrict : U₀
-      | nonStrictIntro : ((nonStrict → nat) → nat) → nonStrict
-
-#fail ind wrong : U₀
-      | wrongIntro : nat → nat
-
-#fail ind wrongPars (A : U₀) (B : U₀) : U₀
-      | wrongParsIntro : wrongPars B A

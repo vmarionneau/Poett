@@ -312,6 +312,16 @@ printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
 failTok :: Parser (Stream Char) Token
 failTok = notFollowed (string "#fail") alphaNum >> pure FailTok
 
+emptyLine :: Parser (Stream Char) ()
+emptyLine =
+  do
+    c ← next
+    if c == '\n'
+      then pure ()
+      else if c `elem` " \r\t"
+           then emptyLine
+           else parserFail
+
 munchLine :: Parser (Stream Char) ()
 munchLine =
   do
@@ -396,7 +406,7 @@ tokenPos =
     pure $ tok @: p
 
 lexer :: Parser (Stream Char) [Loc Token]
-lexer = many ((many comment) >> tokenPos << whitespace)
+lexer = many ((many (comment <|> emptyLine)) >> tokenPos << whitespace)
 
 anchor :: Pos → Parser (Scoped (Loc a)) ()
 anchor p =
