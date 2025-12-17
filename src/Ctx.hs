@@ -339,7 +339,12 @@ showTermCtx (Pi name ty fam) =
   do
     sTy ← showTermCtx ty
     let isBound = occurs 0 fam
-    let name' = if isBound then name else named "_"
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
     name'' ← addVar name' ty
     sFam ← showTermCtx (instantiate [FVar name''] fam)
     removeDecl name''
@@ -350,7 +355,12 @@ showTermCtx (Abs name ty tm) =
   do
     sTy ← showTermCtx ty
     let isBound = occurs 0 tm
-    let name' = if isBound then name else named "_"
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
     name'' ← addVar name' ty
     sTm ← showTermCtx (instantiate [FVar name''] tm)
     removeDecl name''
@@ -360,7 +370,12 @@ showTermCtx (Let name ty tm body) =
     sTy ← showTermCtx ty
     sTm ← showTermCtx tm
     let isBound = occurs 0 body
-    let name' = if isBound then name else named "_"
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
     name'' ← addVar name' ty
     sBody ← showTermCtx (instantiate [FVar name''] body)
     removeDecl name''
@@ -374,6 +389,7 @@ showTermCtx (App tm args) =
       bracketArg :: Tm → InCtx String
       bracketArg tm'@(Pi _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm'@(Abs _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg (App tm' []) = showTermCtx tm'
       bracketArg tm'@(App _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm'@(Let _ _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
       bracketArg tm' = showTermCtx tm'

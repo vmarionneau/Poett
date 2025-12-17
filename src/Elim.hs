@@ -24,7 +24,7 @@ elimFam lvl ind paramNames =
     let indices = instantiateTele (FVar <$> paramNames) $ indIndices ind
     indicesNames ← addTelescope indices
     let resIndTy = App (Ident (indName ind)) $ FVar <$> (reverse paramNames ++ reverse indicesNames)
-    dummy ← freshName (Name "x" (-1))
+    dummy ← freshName (named "x")
     let ty = Pi dummy resIndTy (U lvl)
     closeProducts indicesNames ty
 
@@ -82,16 +82,16 @@ elimType ind lvl =
     let params = indParams ind
     paramNames ← addTelescope params
     famTy ← elimFam lvl ind paramNames
-    famName ← addVar (Name "T" (-1)) famTy
+    famName ← addVar (named "T") famTy
     motives ← mapM (\ i → (constrMotive ind paramNames famName i) >>=
                      \ ty → getConstr ind i >>=
-                      \ cs → pure (Name ("P" ++ csName cs) (-1), ty))
+                      \ cs → pure (named ("P" ++ csName cs), ty))
               $ reverse  [0..length (indConstructors ind) - 1]
     motiveNames ← addVars motives
     let indices = instantiateTele (FVar <$> paramNames) $ indIndices ind
     indicesNames ← addTelescope indices
     let famArgTy = App (Ident (indName ind)) $ FVar <$> (reverse paramNames ++ reverse indicesNames)
-    famArgName ← addVar (Name "x" (-1)) famArgTy
+    famArgName ← addVar (named "x") famArgTy
     closeProducts
       (famArgName:indicesNames ++ motiveNames ++ famName:paramNames)
       (App (FVar famName) $ FVar <$> (indicesNames ++ [famArgName]))
@@ -110,10 +110,10 @@ constrElimRule ind lvl i =
     let params = indParams ind
     paramNames ← addTelescope params
     famTy ← elimFam lvl ind paramNames
-    famName ← addVar (Name "T" (-1)) famTy
+    famName ← addVar (named "T") famTy
     motives ← mapM (\ j → (constrMotive ind paramNames famName j) >>=
                      \ ty → getConstr ind j >>=
-                      \ cs → pure (Name ("P" ++ csName cs) (-1), ty))
+                      \ cs → pure (named ("P" ++ csName cs), ty))
               $ reverse  [0..length (indConstructors ind) - 1]
     motiveNames ← addVars motives
     let args = csArgs cst
