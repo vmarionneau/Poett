@@ -25,3 +25,19 @@ data PreInd = PreInd
     preIndConstructors :: [(String, PTy)]
   }
   deriving (Eq, Show)
+
+data DefCmd = DefCmd { defCmdName :: String, defCmdType :: Maybe PTy, defCmdBody :: PTm }
+  deriving (Eq, Show)
+
+data Command
+  = Definition DefCmd
+  | Inductive PreInd
+  | Axiom String PTy
+  | Check PTm
+  | Print String
+  | Import String
+  | Fail Command
+  | NF PTm
+  | HNF PTm
+  | WHNF PTm
+  deriving (Eq, Show)

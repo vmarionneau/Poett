@@ -1,28 +1,20 @@
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 
 module Cmd (module Cmd) where
 
 import Syntax
 import Term
 import Ctx
+import Syntax
+import Parser
 import WHNF
 import Typecheck
 import Elab
 import Data.Maybe (fromMaybe)
-
-data DefCmd = DefCmd { defCmdName :: String, defCmdType :: Maybe PTy, defCmdBody :: PTm }
-  deriving (Eq, Show)
-
-data Command
-  = Definition DefCmd
-  | Inductive PreInd
-  | Check PTm
-  | Print String
-  | Fail Command
-  | NF PTm
-  | HNF PTm
-  | WHNF PTm
-  deriving (Eq, Show)
+import System.IO (isEOF)
+import Control.Monad (void, foldM)
 
 processDef :: DefCmd → InCtx (IO ())
 processDef df =
@@ -41,6 +33,14 @@ processDef df =
         ty ← infer tm
         addDef (defCmdName df) tm ty
         pure $ pure ()
+
+processAx :: String → PTy → InCtx (IO ())
+processAx name pty =
+  do
+    ty ← toTerm pty
+    ensureType ty
+    addCst name ty
+    pure $ pure ()
 
 processInd :: PreInd → InCtx (IO ())
 processInd pind =
@@ -78,14 +78,13 @@ processPrint name =
          }
       else fail $ "Not a defined constant : " ++ name
 
-processFail :: Command → InCtx (IO ())
-processFail cmd =
-  isolate $
+processFail :: Command → Ctx → IO (Either String Ctx)
+processFail cmd ctx =
   do
-    x ← inCtxTry $ processCommand cmd
+    x ← processCommand cmd ctx
     case x of
-      Right _ → fail "Command has not failed !"
-      Left err → pure $ putStrLn $ "Command has indeed failed with message : " ++ err
+      Right _ → pure $ Left "Command has not failed !"
+      Left err → (putStrLn $ "Command has indeed failed with message : " ++ err) >> (pure $ Right ctx)
 
 processNF :: PTm → InCtx (IO ())
 processNF ptm =
@@ -114,12 +113,74 @@ processWHNF ptm =
     sTm ← showTermCtx tm'
     pure $ putStrLn sTm
 
-processCommand :: Command → InCtx (IO ())
-processCommand (Definition df) = processDef df
-processCommand (Inductive pind) = processInd pind
-processCommand (Check ptm) = processCheck ptm
-processCommand (Print name) = processPrint name
+unpackForIO :: InCtx (IO ()) → Ctx → IO (Either String Ctx)
+unpackForIO mx ctx =
+  do
+    let x = runInCtx mx ctx
+    case x of
+      Left err → pure $ Left err
+      Right (ctx', my) → my >> (pure $ Right ctx')
+
+processCommand :: Command → Ctx → IO (Either String Ctx)
+processCommand (Definition df) = unpackForIO $ processDef df
+processCommand (Inductive pind) = unpackForIO $ processInd pind
+processCommand (Axiom name pty) = unpackForIO $ processAx name pty
+processCommand (Check ptm) = unpackForIO $ processCheck ptm
+processCommand (Print name) = unpackForIO $ processPrint name
+processCommand (Import path) = processFile (path ++ ".poett")
 processCommand (Fail cmd) = processFail cmd
-processCommand (NF ptm) = processNF ptm
-processCommand (HNF ptm) = processHNF ptm
-processCommand (WHNF ptm) = processWHNF ptm
+processCommand (NF ptm) = unpackForIO $ processNF ptm
+processCommand (HNF ptm) = unpackForIO $ processHNF ptm
+processCommand (WHNF ptm) = unpackForIO $ processWHNF ptm
+
+processInput :: String → Ctx → IO (Either String Ctx)
+processInput input ctx =
+  do
+    let inctx =
+          do
+            { (toks, rest) ← inCtxOfMaybe "Lexing failed" $ runParser lexer $ Stream input 0 0
+            ; (cmds, rest') ← inCtxOfMaybe "Parsing failed" $ runParser script $ Scoped toks []
+            ; if (streamData rest) /= []
+              then fail $ "Lexer error at : " ++ show (streamRow rest, streamCol rest)
+              else
+                case (scopedData rest') of
+                  h:_ → fail $ "Parser error at : " ++ show (pos h)
+                  [] → pure $ processCommand <$> locData <$> cmds
+            }
+    case runInCtx inctx ctx of
+      Left msg → pure $ Left msg
+      Right (ctx', actions) →
+        foldM (\ mctx action →
+                  case mctx of
+                    Left err → pure $ Left err
+                    Right ctx'' → action ctx''
+              ) (Right ctx') actions
+
+processFile :: String → Ctx → IO (Either String Ctx)
+processFile fileName ctx =
+  do
+    file ← readFile fileName
+    ctx' ← processInput file ctx
+    case ctx' of
+      Left err → pure $ Left ("Import of file '" ++ fileName ++ "' has failed with error : " ++ err)
+      Right ctx'' → pure $ Right ctx''
+
+repl :: IO ()
+repl = aux [] emptyCtx
+  where
+    aux ls ctx =
+      do
+        end ← isEOF
+        if end
+          then void $ processInput (unlines ls) ctx 
+          else
+          do
+            { l ← getLine
+            ; if l == []
+              then
+                do mctx ← processInput (unlines ls) ctx
+                   case mctx of
+                     Left err → putStrLn err >> aux [] ctx
+                     Right ctx' → aux [] ctx'
+              else aux (ls ++ [l]) ctx
+            }

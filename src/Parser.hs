@@ -6,7 +6,6 @@ import Control.Applicative
 import Control.Monad (foldM, void)
 import Data.Char (ord)
 import Syntax
-import Cmd
 import Term
 
 newtype Parser a b = Parser { runParser :: a → Maybe (b, a) }
@@ -76,9 +75,11 @@ parseMaybe p = Parser (\ s →
 data Token
   = DefTok
   | IndTok
+  | AxiomTok
   | CheckTok
   | PrintTok
   | FailTok
+  | ImportTok String
   | NFTok
   | HNFTok
   | WHNFTok
@@ -93,6 +94,7 @@ data Token
   | RParen
   | LBracket
   | RBracket
+  | FilePath String
   | Identifier String
   | Number Int
   | Comma
@@ -298,6 +300,9 @@ defTok = notFollowed (string "def") alphaNum >> pure DefTok
 indTok :: Parser (Stream Char) Token
 indTok = notFollowed (string "ind") alphaNum >> pure IndTok
 
+axTok :: Parser (Stream Char) Token
+axTok = notFollowed (string "axiom") alphaNum >> pure AxiomTok
+
 checkTok :: Parser (Stream Char) Token
 checkTok = notFollowed (string "#check") alphaNum >> pure CheckTok
 
@@ -306,6 +311,15 @@ printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
 
 failTok :: Parser (Stream Char) Token
 failTok = notFollowed (string "#fail") alphaNum >> pure FailTok
+
+importTok :: Parser (Stream Char) Token
+importTok =
+  do
+    notFollowed (string "#import") alphaNum
+    void $ hwhitespace
+    beg ← some alphaNum
+    rest ← many (alphaNum <|> char '/' <|> char '.')
+    pure $ ImportTok $ beg ++ rest
 
 nfTok :: Parser (Stream Char) Token
 nfTok = notFollowed (string "#nf") alphaNum >> pure NFTok
@@ -322,6 +336,9 @@ lparen = char '(' >> pure LParen
 rparen :: Parser (Stream Char) Token
 rparen = char ')' >> pure RParen
 
+hwhitespace :: Parser (Stream Char) String
+hwhitespace = many $ oneOf $ char <$> " \t\r"
+
 whitespace :: Parser (Stream Char) String
 whitespace = many $ oneOf $ char <$> " \t\r\n"
 
@@ -332,9 +349,11 @@ token = oneOf
         , arrowTok
         , defTok
         , indTok
+        , axTok
         , checkTok
         , printTok
         , failTok
+        , importTok
         , nfTok
         , hnfTok
         , whnfTok
@@ -352,7 +371,8 @@ token = oneOf
         , colon
         , inTok
         , elimTok
-        , identifier]
+        , identifier
+        ]
 
 tokenPos :: Parser (Stream Char) (Loc Token)
 tokenPos =
@@ -574,7 +594,7 @@ constructor =
     ty ← locData <$> expr
     deanchor
     pure $ (name, ty) @< beg
-       
+
 inductive :: Parser (Scoped (Loc Token)) (Loc Command)
 inductive =
   do
@@ -588,6 +608,16 @@ inductive =
     deanchor
     deanchor
     pure $ (Inductive $ PreInd name params ar constr) @< beg
+
+axiom :: Parser (Scoped (Loc Token)) (Loc Command)
+axiom =
+  do
+    beg ← parseTok AxiomTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    ty ← locData <$> (parseTok Colon >> expr)
+    deanchor
+    pure $ (Axiom name ty) @< beg
 
 checkCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 checkCmd =
@@ -615,6 +645,14 @@ failCmd =
     cmd ← locData <$> command
     deanchor
     pure $ (Fail cmd) @< beg
+
+importCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+importCmd =
+  do
+    tok ← nextTok
+    case locData tok of
+      ImportTok s → pure $ (Import s) @< tok
+      _ → parserFail
 
 nfCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 nfCmd =
@@ -647,8 +685,10 @@ command :: Parser (Scoped (Loc Token)) (Loc Command)
 command = oneOf
           [ definition
           , inductive
+          , axiom
           , checkCmd
           , printCmd
+          , importCmd
           , failCmd
           , nfCmd
           , hnfCmd
