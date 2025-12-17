@@ -23,3 +23,16 @@ def ap : Π (A : U₀) Π (B : U₀) Π (f : A → B) Π (x : A) Π (y : A) eq A
        λ (x : A),
          elim Prop eq A x (λ (y : A), λ (_ : eq A x y), eq B (f x) (f y))
               (refl B (f x))
+              
+-- Leibniz equality
+def lbz : Π(A : U₀) Π(x : A) A → Prop
+    := λ (A : U₀), λ (x : A), λ (y : A), Π (P : A → Prop) P x → P y
+
+def lbz-refl : Π(A : U₀) Π(x : A) lbz A x x
+    := λ (A : U₀), λ (x : A), λ (P : A → Prop), λ (H : P x), H
+
+def lbz-eq : Π(A : U₀) Π(x : A) Π(y : A) lbz A x y → eq A x y
+    := λ (A : U₀), λ (x : A), λ (y : A), λ (p : lbz A x y), p (λ (z : A), eq A x z) (refl A x)
+
+def eq-lbz : Π(A : U₀) Π(x : A) Π(y : A) eq A x y → lbz A x y
+    := λ (A : U₀), λ (x : A), λ (y : A), λ (p : eq A x y), elim Prop eq A x (λ (z : A), λ (_ : eq A x z), lbz A x z) (lbz-refl A x) y p

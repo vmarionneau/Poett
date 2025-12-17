@@ -182,8 +182,8 @@ notFollowed :: Parser a b → Parser a c → Parser a b
 notFollowed p f =
   do
     res ← p
-    next ← parseMaybe $ peeking f
-    case next of
+    nxt ← parseMaybe $ peeking f
+    case nxt of
       Just _ → parserFail
       Nothing → pure res
 
@@ -312,23 +312,16 @@ printTok = notFollowed (string "#print") alphaNum >> pure PrintTok
 failTok :: Parser (Stream Char) Token
 failTok = notFollowed (string "#fail") alphaNum >> pure FailTok
 
-emptyLine :: Parser (Stream Char) ()
-emptyLine =
-  do
-    c ← next
-    if c == '\n'
-      then pure ()
-      else if c `elem` " \r\t"
-           then emptyLine
-           else parserFail
-
 munchLine :: Parser (Stream Char) ()
 munchLine =
   do
-    c ← next
-    if c == '\n'
-      then pure ()
-      else munchLine
+    mc ← parseMaybe next
+    case mc of
+      Nothing → pure ()
+      Just c → 
+        if c == '\n'
+        then pure ()
+        else munchLine
 
 comment :: Parser (Stream Char) ()
 comment =
@@ -365,6 +358,9 @@ hwhitespace = many $ oneOf $ char <$> " \t\r"
 
 whitespace :: Parser (Stream Char) String
 whitespace = many $ oneOf $ char <$> " \t\r\n"
+
+ignored :: Parser (Stream Char) ()
+ignored = void $ many $ (void comment) <|> void (oneOf $ char <$> " \t\r\n")
 
 token :: Parser (Stream Char) Token
 token = oneOf
@@ -406,7 +402,7 @@ tokenPos =
     pure $ tok @: p
 
 lexer :: Parser (Stream Char) [Loc Token]
-lexer = many ((many (comment <|> emptyLine)) >> tokenPos << whitespace)
+lexer = ignored >> many (tokenPos << ignored)
 
 anchor :: Pos → Parser (Scoped (Loc a)) ()
 anchor p =

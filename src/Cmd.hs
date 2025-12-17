@@ -142,7 +142,7 @@ processInput input ctx =
             { (toks, rest) ← inCtxOfMaybe "Lexing failed" $ runParser lexer $ Stream input 0 0
             ; (cmds, rest') ← inCtxOfMaybe "Parsing failed" $ runParser script $ Scoped toks []
             ; if (streamData rest) /= []
-              then fail $ "Lexer error at : " ++ show (streamRow rest, streamCol rest)
+              then fail $ "Lexer error at : " ++ show (streamRow rest, streamCol rest) ++ " : " ++ show (streamData rest)
               else
                 case (scopedData rest') of
                   h:_ → fail $ "Parser error at : " ++ show (pos h)
