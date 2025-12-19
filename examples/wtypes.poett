@@ -1,7 +1,7 @@
 #import examples/inductives
 
 ind W (A : U₀) (B : A → U₀) : U₀
-| node : Π(a : A) Π (f : B a → W A B) W A B
+| sup : Π(a : A) Π (f : B a → W A B) W A B
 
 -- Extensional equality on W-types
 def W-eq : Π(A : U₀) Π(B : A → U₀) W A B → W A B → Prop
@@ -31,46 +31,45 @@ def W-eq-refl : Π(A : U₀) Π(B : A → U₀) Π(w : W A B) W-eq A B w w
                       (refl A a) ih
               )
 
-def wlistNodes : U₀ → U₀
+def wlistCs : U₀ → U₀
     := λ (A : U₀), sum unit A
 
-def wlistAr : Π(A : U₀) wlistNodes A → U₀
+def wlistAr : Π(A : U₀) wlistCs A → U₀
     := λ (A : U₀), elim U₁ sum unit A (λ (_ : sum unit A), U₀) (λ (_ : unit), empty) (λ (_ : A), unit)
 
 def wlist : U₀ → U₀
-    := λ (A : U₀), W (wlistNodes A) (wlistAr A)
+    := λ (A : U₀), W (wlistCs A) (wlistAr A)
 
 def wnil : Π(A : U₀) wlist A
-    := λ (A : U₀), node (wlistNodes A) (wlistAr A) (inl unit A tt) (elim U₀ empty (λ (_ : empty), wlist A))
+    := λ (A : U₀), sup (wlistCs A) (wlistAr A) (inl unit A tt) (elim U₀ empty (λ (_ : empty), wlist A))
 
 def wcons : Π(A : U₀) A → wlist A → wlist A
-    := λ (A : U₀), λ (h : A), λ (t : wlist A), node (wlistNodes A) (wlistAr A) (inr unit A h) (λ (_ : unit), t)
+    := λ (A : U₀), λ (h : A), λ (t : wlist A), sup (wlistCs A) (wlistAr A) (inr unit A h) (λ (_ : unit), t)
 
 def listToWlist : Π(A : U₀) list A → wlist A
     := λ (A : U₀), elim U₀ list A (λ (_ : list A), wlist A) (wnil A) (λ (h : A), λ (_ : list A), λ (t : wlist A), wcons A h t)
 
 def wlistToList : Π(A : U₀) wlist A → list A
     := λ (A : U₀),
-       elim U₀ W (wlistNodes A) (wlistAr A)
-            (λ (_ : W (wlistNodes A) (wlistAr A)), list A)
+       elim U₀ W (wlistCs A) (wlistAr A)
+            (λ (_ : W (wlistCs A) (wlistAr A)), list A)
             (elim U₀ sum unit A
                   (λ (x : sum unit A), (wlistAr A x → wlist A) → (wlistAr A x → list A) → list A)
                   (λ (_ : unit), λ (_ : empty → wlist A), λ (_ : empty → list A), nil A)
                   (λ (h : A), λ (_ : unit → wlist A), λ (t : unit → list A), cons A h (t tt))
              )
 
-def foo : list unit
+def foo₀ : list unit
     := cons unit tt (cons unit tt (nil unit))
 
-def bar : wlist unit
-    := listToWlist unit foo
+def bar₀ : wlist unit
+    := listToWlist unit foo₀
 
 def oof : list unit
-    := wlistToList unit bar
+    := wlistToList unit bar₀
 
+#check (refl (list unit) foo₀ : eq (list unit) foo₀ oof)
 
-#check (refl (list unit) foo : eq (list unit) foo oof)
-
-#nf foo
-#nf bar
+#nf foo₀
+#nf bar₀
 #nf oof

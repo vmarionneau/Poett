@@ -8,7 +8,7 @@ import Ind
 import qualified Data.Map as Map
 import Data.Map (( !? ))
 import Data.List (find, partition, elemIndex)
-import Control.Monad (foldM)
+import Control.Monad (foldM, void)
 
 data LocalCtxEntry = LocalCtxEntry {entryName :: Name, entryType :: Ty, entryDef :: Maybe Tm}
   deriving (Eq, Show)
@@ -193,24 +193,33 @@ getIndConstr nameInd i =
     ind ← getInd nameInd
     getConstr ind i
 
+ensureUndef :: String → InCtx ()
+ensureUndef name =
+  do
+    bInd ← isInd name
+    bDef ← isDef name
+    bConstr ← isConstr name
+    if bInd || bConstr || bDef
+    then fail $ "Already defined : " ++ name
+    else pure ()
+
 addInd :: Ind Ty → InCtx ()
 addInd ind =
   do
     let name = indName ind
-    bInd ← isInd name
-    bDef ← isDef name
+    ensureUndef name
     inds ← getIndCtx
-    if bInd || bDef
-    then fail $ "Already defined : " ++ name
-    else setIndCtx $ inds `Map.union` (Map.singleton name ind)
+    void $ mapM (ensureUndef . csName) (indConstructors ind)
+    setIndCtx $ inds `Map.union` (Map.singleton name ind)
 
 addDef :: String → Tm → Ty → InCtx ()
 addDef name tm ty =
   do
     bInd ← isInd name
     bDef ← isDef name
+    bConstr ← isConstr name
     defs ← getDefCtx
-    if bInd || bDef
+    if bInd || bConstr || bDef
     then fail $ "Already defined : " ++ name
     else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm))
 
