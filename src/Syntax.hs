@@ -31,6 +31,7 @@ data DefCmd = DefCmd { defCmdName :: String, defCmdType :: Maybe PTy, defCmdBody
 
 data Command
   = Definition DefCmd
+  | Proof DefCmd
   | Inductive PreInd
   | Axiom String PTy
   | Check PTm

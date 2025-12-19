@@ -39,6 +39,5 @@ def neq : Π(A : U₀) A → A → Prop
 def true-ne-false-fam : bool → Prop
     := elim U₀ bool (λ (_ : bool), Prop) bot top
 
-def true-ne-false : neq bool true false
-    := λ (p : eq bool true false),
-         elim Prop eq bool true (λ (b : bool), λ (_ : eq bool true b), true-ne-false-fam b) I false p
+proof true-ne-false : neq bool true false
+      := elim Prop eq bool true (λ (b : bool), λ (_ : eq bool true b), true-ne-false-fam b) I false

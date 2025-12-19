@@ -33,6 +33,24 @@ processDef df =
         addDef (defCmdName df) tm ty
         pure $ pure ()
 
+processProof :: DefCmd → InCtx (IO ())
+processProof pf =
+  case defCmdType pf of
+    Just pty →
+      do
+        ty ← toTerm pty
+        ensureType ty
+        tm ← toTerm (defCmdBody pf)
+        check tm ty
+        addCst (defCmdName pf) ty
+        pure $ pure ()
+    Nothing →
+      do
+        tm ← toTerm (defCmdBody pf)
+        ty ← infer tm
+        addCst (defCmdName pf) ty
+        pure $ pure ()
+
 processAx :: String → PTy → InCtx (IO ())
 processAx name pty =
   do
@@ -123,6 +141,7 @@ unpackForIO mx ctx =
 
 processCommand :: Command → Ctx → IO (Either String Ctx)
 processCommand (Definition df) = unpackForIO $ processDef df
+processCommand (Proof pf) = unpackForIO $ processProof pf
 processCommand (Inductive pind) = unpackForIO $ processInd pind
 processCommand (Axiom name pty) = unpackForIO $ processAx name pty
 processCommand (Check ptm) = unpackForIO $ processCheck ptm

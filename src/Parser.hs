@@ -74,6 +74,7 @@ parseMaybe p = Parser (\ s →
 
 data Token
   = DefTok
+  | ProofTok
   | IndTok
   | AxiomTok
   | CheckTok
@@ -295,10 +296,13 @@ elimTok :: Parser (Stream Char) Token
 elimTok = notFollowed (string "elim") alphaNum >> pure ElimTok
 
 defTok :: Parser (Stream Char) Token
-defTok = notFollowed (string "def") alphaNum >> pure DefTok
+defTok = notFollowed (string "def" <|> string "definition") alphaNum >> pure DefTok
+
+proofTok :: Parser (Stream Char) Token
+proofTok = notFollowed (string "proof") alphaNum >> pure ProofTok
 
 indTok :: Parser (Stream Char) Token
-indTok = notFollowed (string "ind") alphaNum >> pure IndTok
+indTok = notFollowed (string "ind" <|> string "inductive") alphaNum >> pure IndTok
 
 axTok :: Parser (Stream Char) Token
 axTok = notFollowed (string "axiom") alphaNum >> pure AxiomTok
@@ -368,6 +372,7 @@ token = oneOf
         , piTok
         , arrowTok
         , defTok
+        , proofTok
         , indTok
         , axTok
         , checkTok
@@ -610,6 +615,20 @@ definition =
     deanchor
     pure $ (Definition $ DefCmd name ty body) @< beg
 
+proof :: Parser (Scoped (Loc Token)) (Loc Command)
+proof =
+  do
+    beg ← parseTok ProofTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    ty ← (fmap locData) <$> (parseMaybe $ parseTok Colon >> expr)
+    defeq ← parseTok DefEq
+    anchor $ pos defeq
+    body ← locData <$> expr
+    deanchor
+    deanchor
+    pure $ (Proof $ DefCmd name ty body) @< beg
+
 constructor :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
 constructor =
   do
@@ -710,6 +729,7 @@ whnfCmd =
 command :: Parser (Scoped (Loc Token)) (Loc Command)
 command = oneOf
           [ definition
+          , proof
           , inductive
           , axiom
           , checkCmd
