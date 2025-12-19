@@ -27,8 +27,8 @@ ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
 
 ind bool : U₀
-| true : bool
 | false : bool
+| true : bool
 
 def neq : Π(A : U₀) A → A → Prop
     := λ (A : U₀),
@@ -37,7 +37,7 @@ def neq : Π(A : U₀) A → A → Prop
        not (eq A x y)
 
 def true-ne-false-fam : bool → Prop
-    := elim U₀ bool (λ (_ : bool), Prop) top bot
+    := elim U₀ bool (λ (_ : bool), Prop) bot top
 
 def true-ne-false : neq bool true false
     := λ (p : eq bool true false),

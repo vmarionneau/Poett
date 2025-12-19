@@ -70,26 +70,28 @@ def mul-succ-r : Π(n : nat) Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m
             (λ (n : nat),
              λ (ih : Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m))),
              λ (m : nat),
-               ap nat nat succ (add m (mul n (succ m))) (add n (add m (mul n m)))
-                    (trans nat (add m (mul n (succ m)))
-                               (add m (add n (mul n m)))
-                               (add n (add m (mul n m)))
-                               (ap nat nat (add m) (mul n (succ m)) (add n (mul n m)) (ih m))
-                               (trans nat (add m (add n (mul n m)))
-                                          (add (add m n) (mul n m))
-                                          (add n (add m (mul n m)))
-                                          (add-assoc m n (mul n m))
-                                          (trans nat (add (add m n) (mul n m))
-                                                     (add (add n m) (mul n m))
-                                                     (add n (add m (mul n m)))
-                                                     (ap nat nat (λ (k : nat), add k (mul n m)) (add m n) (add n m) (add-comm m n))
-                                                     (sym nat
-                                                         (add n (add m (mul n m)))
-                                                         (add (add n m) (mul n m))
-                                                         (add-assoc n m (mul n m)))
-                                          )
-                               )
-                     )
+               let (k₀ : nat) := add m n in
+               let (k₁ : nat) := add n m in
+               let (k₂ : nat) := mul n m in
+               let (m₀ : nat) := mul n (succ m) in
+               let (m₁ : nat) := add n k₂ in
+               let (m₂ : nat) := add m k₂ in
+               let (n₀ : nat) := add m m₀ in
+               let (n₁ : nat) := add m m₁ in
+               let (n₂ : nat) := add k₀ k₂ in
+               let (n₃ : nat) := add k₁ k₂ in
+               let (n₄ : nat) := add n m₂ in
+               let (k₀₁ : eq nat k₀ k₁) := add-comm m n in
+               let (m₀₁ : eq nat m₀ m₁) := ih m in
+               let (n₀₁ : eq nat n₀ n₁) := ap nat nat (add m) m₀ m₁ m₀₁ in
+               let (n₁₂ : eq nat n₁ n₂) := add-assoc m n (mul n m) in
+               let (n₂₃ : eq nat n₂ n₃) := ap nat nat (λ (k : nat), add k k₂) k₀ k₁ k₀₁ in
+               let (n₄₃ : eq nat n₄ n₃) := add-assoc n m k₂ in
+               let (n₃₄ : eq nat n₃ n₄) := sym nat n₄ n₃ n₄₃ in
+               let (n₂₄ : eq nat n₂ n₄) := trans nat n₂ n₃ n₄ n₂₃ n₃₄ in
+               let (n₁₄ : eq nat n₁ n₄) := trans nat n₁ n₂ n₄ n₁₂ n₂₄ in
+               let (n₀₄ : eq nat n₀ n₄) := trans nat n₀ n₁ n₄ n₀₁ n₁₄ in
+               ap nat nat succ n₀ n₄ n₀₄
             )
              
 def mul-comm : Π(n : nat) Π(m : nat) eq nat (mul n m) (mul m n)
@@ -200,3 +202,5 @@ def mul-assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul n (mul m k)) (mu
                        )
                        
            )
+
+#check add-succ-r

@@ -528,17 +528,25 @@ parentExpr =
     deanchor
     pure $ res @< beg
 
+identType :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
+identType =
+  do
+    var ← parseIdent
+    anchor $ pos var
+    void $ parseTok Colon
+    ty ← locData <$> expr
+    deanchor
+    pure $ (locData var, ty) @< var
+
 varDecl :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
 varDecl =
   do
     beg ← parseTok LParen
     anchor $ pos beg
-    var ← locData <$> parseIdent
-    void $ parseTok Colon
-    ty ← locData <$> expr
+    res ← identType
     void $ parseTok RParen
     deanchor
-    pure $ (var, ty) @< beg
+    pure $ (locData res) @< beg
 
 cast :: Parser (Scoped (Loc Token)) (Loc PTm)
 cast =
@@ -578,15 +586,13 @@ letExpr =
   do
     beg ← parseTok LetTok
     anchor $ pos beg
-    (name, ty) ← locData <$> varDecl
+    (name, ty) ← locData <$> (varDecl <|> identType)
     defeq ← parseTok DefEq
     anchor $ pos defeq
     tm1 ← locData <$> expr
     deanchor
-    tokIn ← parseTok In
-    anchor $ pos tokIn
+    void $ parseTok In
     tm2 ← locData <$> expr
-    deanchor
     deanchor
     pure $ (PLet name ty tm1 tm2) @< beg
 

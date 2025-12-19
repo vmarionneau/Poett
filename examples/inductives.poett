@@ -18,3 +18,77 @@ ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
 
 #fail ind wrongPars (A : U₀) (B : U₀) : U₀
       | wrongParsIntro : wrongPars B A
+
+#fail ind tree (A : U₀) : U₀
+      | node : A → list (tree A) → tree A
+
+ind forestTree (A : U₀) : bool → U₀
+| treeNode : A → forestTree A true → forestTree A false
+| forestNil : forestTree A true
+| forestCons : forestTree A false → forestTree A true → forestTree A true
+
+#check elim U₀ forestTree
+
+def tree : U₀ → U₀
+    := λ (A : U₀), forestTree A false
+
+def forest : U₀ → U₀
+    := λ (A : U₀), forestTree A true
+
+def list-to-forest : Π(A : U₀) list (tree A) → forest A
+    := λ (A : U₀),
+         elim U₀ list (tree A)
+                 (λ (_ : list (tree A)), forest A)
+                 (forestNil A)
+                 (λ (t : tree A),
+                  λ (_ : list (tree A)),
+                  λ (f : forest A),
+                  forestCons A t f
+                 )
+
+def forest-to-list-fam : Π(A : U₀) Π(b : bool) forestTree A b → U₀
+    := λ (A : U₀),
+       λ (b : bool),
+       λ (_ : forestTree A b),
+       elim U₁ bool (λ (_ : bool), U₀) unit (list (tree A)) b
+
+def forest-to-list : Π(A : U₀) forest A → list (tree A)
+    := λ (A : U₀),
+         elim U₀ forestTree A
+              (forest-to-list-fam A)
+              (λ (_ : A),
+               λ (_ : forest A),
+               λ (_ : list (tree A)),
+                 tt
+               )
+               (nil (tree A))
+               (λ (t : tree A),
+                λ (_ : unit),
+                λ (_ : forest A),
+                λ (l : list (tree A)),
+                  cons (tree A) t l
+               ) true
+ 
+def node : Π(A : U₀) A → list (tree A) → tree A
+    := λ(A : U₀), λ(x : A), λ(l : list (tree A)), treeNode A x (list-to-forest A l)
+
+def foo := node unit tt (nil (tree unit))
+
+def bar := cons (tree unit) foo (cons (tree unit) foo (nil (tree unit)))
+
+def baz := list-to-forest unit bar
+
+def biz := forest-to-list unit baz
+
+#nf bar
+#nf baz
+#nf biz
+
+-- This is provable though tedious
+axiom elimTree : Π(A : U₀)
+                 Π(P : tree A → U₀)
+                 Π(Q : list (tree A) → U₀)
+                 (Π(x : A) Π(l : list (tree A)) Q l → P (node A x l)) →
+                 Q (nil (tree A)) →
+                 (Π (t : tree A) Π(l : list (tree A)) P t → Q l → Q (cons (tree A) t l)) →
+                 Π(t : tree A) P t
