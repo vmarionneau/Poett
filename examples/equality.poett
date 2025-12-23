@@ -1,6 +1,6 @@
 -- Facts about equality
 
-#import examples/prelude
+#import prelude
 
 def sym : Π(A : U₀) Π(x : A) Π(y : A) eq A x y → eq A y x
     := λ (A : U₀),

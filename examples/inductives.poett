@@ -1,4 +1,4 @@
-#import examples/equality
+#import equality
 
 ind list (A : U₀) : U₀
 | nil : list A

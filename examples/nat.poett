@@ -1,5 +1,5 @@
 -- Natural numbers
-#import examples/equality
+#import equality
 
 ind nat : U₀
 | zero : nat

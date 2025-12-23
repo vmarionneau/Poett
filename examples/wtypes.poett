@@ -1,4 +1,4 @@
-#import examples/inductives
+#import inductives
 
 ind W (A : U₀) (B : A → U₀) : U₀
 | sup : Π(a : A) Π (f : B a → W A B) W A B

@@ -13,6 +13,7 @@ import Typecheck
 import Elab
 import Data.Maybe (fromMaybe)
 import System.IO (isEOF)
+import System.Directory (getCurrentDirectory)
 import Control.Monad (void, foldM)
 
 processDef :: DefCmd → InCtx (IO ())
@@ -96,10 +97,10 @@ processPrint name =
          }
       else fail $ "Not a defined constant : " ++ name
 
-processFail :: Command → Ctx → IO (Either String Ctx)
-processFail cmd ctx =
+processFail :: Command → FilePath → Ctx → IO (Either String Ctx)
+processFail cmd path ctx =
   do
-    x ← processCommand cmd ctx
+    x ← processCommand cmd path ctx
     case x of
       Right _ → pure $ Left "Command has not failed !"
       Left err → (putStrLn $ "Command has indeed failed with message : " ++ err) >> (pure $ Right ctx)
@@ -131,29 +132,29 @@ processWHNF ptm =
     sTm ← showTermCtx tm'
     pure $ putStrLn sTm
 
-unpackForIO :: InCtx (IO ()) → Ctx → IO (Either String Ctx)
-unpackForIO mx ctx =
+unpackForIO :: InCtx (IO ()) → FilePath → Ctx → IO (Either String Ctx)
+unpackForIO mx _ ctx =
   do
     let x = runInCtx mx ctx
     case x of
       Left err → pure $ Left err
       Right (ctx', my) → my >> (pure $ Right ctx')
 
-processCommand :: Command → Ctx → IO (Either String Ctx)
+processCommand :: Command → FilePath → Ctx → IO (Either String Ctx)
 processCommand (Definition df) = unpackForIO $ processDef df
 processCommand (Proof pf) = unpackForIO $ processProof pf
 processCommand (Inductive pind) = unpackForIO $ processInd pind
 processCommand (Axiom name pty) = unpackForIO $ processAx name pty
 processCommand (Check ptm) = unpackForIO $ processCheck ptm
 processCommand (Print name) = unpackForIO $ processPrint name
-processCommand (Import path) = processFile (path ++ ".poett")
+processCommand (Import path) = processImport (path ++ ".poett")
 processCommand (Fail cmd) = processFail cmd
 processCommand (NF ptm) = unpackForIO $ processNF ptm
 processCommand (HNF ptm) = unpackForIO $ processHNF ptm
 processCommand (WHNF ptm) = unpackForIO $ processWHNF ptm
 
-processInput :: String → Ctx → IO (Either String Ctx)
-processInput input ctx =
+processInput :: String → FilePath → Ctx → IO (Either String Ctx)
+processInput input path ctx =
   do
     let inctx =
           do
@@ -164,7 +165,7 @@ processInput input ctx =
               else
                 case (scopedData rest') of
                   h:_ → fail $ "Parser error at : " ++ show (pos h)
-                  [] → pure $ processCommand <$> locData <$> cmds
+                  [] → pure $ (flip processCommand path)  <$> locData <$> cmds
             }
     case runInCtx inctx ctx of
       Left msg → pure $ Left msg
@@ -179,7 +180,10 @@ processFile :: String → Ctx → IO (Either String Ctx)
 processFile fileName ctx =
   do
     file ← readFile fileName
-    ctx' ← processInput file ctx
+    let path = split '/' fileName
+    let pathUp = take (length path - 1) path
+    let root = (intercalate "/" pathUp) ++ "/"
+    ctx' ← processInput file root ctx
     case ctx' of
       Left err →
         let err' = "Import of file '" ++ fileName ++ "' has failed with error : " ++ err
@@ -189,22 +193,39 @@ processFile fileName ctx =
           } 
       Right ctx'' → pure $ Right ctx''
 
+split :: Char → String → [String]
+split _ [] = []
+split x (c:cs) =
+  if c == x
+  then
+    "":split x cs
+  else 
+    case split x cs of
+      [] → [[c]]
+      h:t → (c:h):t
+
+processImport :: String → FilePath → Ctx → IO (Either String Ctx)
+processImport fileName root ctx = processFile (root ++ fileName) ctx
+
 repl :: IO ()
-repl = aux [] emptyCtx
-  where
-    aux ls ctx =
-      do
-        end ← isEOF
-        if end
-          then void $ processInput (unlines ls) ctx 
-          else
+repl =
+  do
+    path ← getCurrentDirectory
+    aux (path ++ "/") [] emptyCtx
+      where
+        aux path ls ctx =
           do
-            { l ← getLine
-            ; if l == []
-              then
-                do mctx ← processInput (unlines ls) ctx
-                   case mctx of
-                     Left err → putStrLn err >> aux [] ctx
-                     Right ctx' → aux [] ctx'
-              else aux (ls ++ [l]) ctx
-            }
+            end ← isEOF
+            if end
+              then void $ processInput (unlines ls) path ctx 
+              else
+              do
+                { l ← getLine
+                ; if l == []
+                  then
+                    do mctx ← processInput (unlines ls) path ctx
+                       case mctx of
+                         Left err → putStrLn err >> aux path [] ctx
+                         Right ctx' → aux path [] ctx'
+                  else aux path (ls ++ [l]) ctx
+                }
