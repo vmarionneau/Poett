@@ -93,7 +93,8 @@ processPrint name =
       else if bInd then
        do
          { ind ← getInd name
-         ; pure $ print ind
+         ; sInd ← showIndCtx ind
+         ; pure $ putStrLn sInd
          }
       else fail $ "Not a defined constant : " ++ name
 

@@ -184,3 +184,120 @@ ensureType ty =
   do
     u ← infer ty
     void $ whnf u >>= asU
+
+showTermCtx :: Tm → InCtx String
+showTermCtx (FVar name) = pure $ show name
+showTermCtx (BVar i) = pure $ show i
+showTermCtx (U lvl) = pure $ show lvl
+showTermCtx (Pi name ty fam) =
+  do
+    sTy ← showTermCtx ty
+    let isBound = occurs 0 fam
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
+    name'' ← addVar name' ty
+    sFam ← showTermCtx (instantiate [FVar name''] fam)
+    removeDecl name''
+    if isBound
+      then pure $ "Π(" ++ show name'' ++ " : " ++ sTy ++ ") " ++ sFam
+      else pure $ sTy ++ " → " ++ sFam
+showTermCtx (Abs name ty tm) =
+  do
+    sTy ← showTermCtx ty
+    let isBound = occurs 0 tm
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
+    name'' ← addVar name' ty
+    sTm ← showTermCtx (instantiate [FVar name''] tm)
+    removeDecl name''
+    pure $ "λ (" ++ show name'' ++ " : " ++ sTy ++ "), " ++ sTm
+showTermCtx (Let name ty tm body) =
+  do
+    sTy ← showTermCtx ty
+    sTm ← showTermCtx tm
+    let isBound = occurs 0 body
+    let name' = if isBound
+                then
+                  if nameString name == "_"
+                  then named "x"
+                  else name
+                else named "_"
+    name'' ← addVar name' ty
+    sBody ← showTermCtx (instantiate [FVar name''] body)
+    removeDecl name''
+    pure $ "let " ++ show name'' ++ " : " ++ sTy ++ " := " ++ sTm ++ " in " ++ sBody
+showTermCtx (App tm args) =
+  do
+    sTm ← bracketArg tm
+    sArgs ← mapM bracketArg args
+    pure $ sTm ++ " " ++ (intercalate " " $ sArgs)
+    where
+      bracketArg :: Tm → InCtx String
+      bracketArg tm'@(Pi _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm'@(Abs _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg (App tm' []) = showTermCtx tm'
+      bracketArg tm'@(App _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm'@(Let _ _ _ _) = showTermCtx tm' >>= \ sTm → pure $ "(" ++ sTm ++ ")"
+      bracketArg tm' = showTermCtx tm'
+showTermCtx (Ident name) = pure name
+showTermCtx (Cast tm ty) =
+  do
+    sTm ← showTermCtx tm
+    sTy ← showTermCtx ty
+    pure $ "(" ++ sTm ++ " : " ++ sTy ++ ")"
+showTermCtx tm@(Constr nameInd i) =
+  do
+    mCst ← inCtxTry $ getIndConstr nameInd i
+    case mCst of
+      Left _ → pure $ show tm
+      Right cst → pure $ csName cst
+showTermCtx (Elim lvl nameInd) = pure $ "elim " ++ show lvl ++ " " ++ nameInd
+
+constrType' :: [Name] → Ind Ty → Int → InCtx Ty
+constrType' paramNames ind i =
+  do
+    cst ← getConstr ind i
+    let args = csArgs cst
+    argNames ← aux args []
+    closeProducts argNames
+      $ App (Ident (indName ind))
+      $ (FVar <$> reverse paramNames)
+      ++ (instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst)
+      where
+        aux :: [(Name, CsArg Ty)] → [Name] → InCtx [Name]
+        aux [] csArgNames = pure csArgNames
+        aux ((argName, arg):args) csArgNames =
+          do
+            argType ← csArgType paramNames csArgNames arg
+            argName' ← addVar argName argType
+            aux args (argName':csArgNames)
+
+showIndCtx :: Ind Ty → InCtx String
+showIndCtx ind =
+  do
+    let params = indParams ind
+    paramNames ← addTelescope params
+    showPs ← mapM (\name →
+                     do
+                       ty ← entryType <$> getLocal name
+                       sTy ← showTermCtx ty
+                       pure $ "(" ++ show name ++ " : " ++ sTy ++ ") "
+                  ) paramNames
+    showCs ← mapM (\i →
+                      do
+                        cst ← getConstr ind i
+                        ty ← constrType' paramNames ind i
+                        sTy ← showTermCtx ty
+                        pure $ csName cst ++ " : " ++ sTy
+                  ) $ [0.. length (indConstructors ind) - 1]
+    arType ← arToType paramNames (indArity ind)
+    sAr ← showTermCtx arType
+    pure $ "ind " ++ indName ind ++ " " ++ concat showPs ++ ": " ++ sAr ++ (if showCs == [] then "" else "\n| " ++ intercalate "\n| " showCs)
