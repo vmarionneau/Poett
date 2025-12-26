@@ -206,8 +206,9 @@ toConstructor nameInd pNames pStrings lvl (name, pty) =
     ty' ← nf (instantiate (FVar <$> pNames) ty)
     u ← infer ty'
     lvl' ← asU u
+    sTy ← showTermCtx ty
     if lvl /= lvl'
-      then fail $ "Incorrect universe size for constructor type " ++ show ty ++ ", expected " ++ show lvl ++ " and got " ++ show lvl'
+      then fail $ "Incorrect universe size for constructor type " ++ sTy ++ ", expected " ++ show lvl ++ " and got " ++ show lvl'
       else do 
       let (args, body) = unravelPi (-1) ty'
       cArgs ← toCsArgs nameInd pNames args
