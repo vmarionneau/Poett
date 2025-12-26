@@ -22,6 +22,12 @@ ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
 #fail ind tree (A : U₀) : U₀
       | node : A → list (tree A) → tree A
 
+ind well-sized (A : U₁) : U₀
+| ws-intro : well-sized A
+
+#fail ind too-big : U₀ → U₀
+      | tb-intro : Π(A : U₀) too-big A
+
 ind forestTree (A : U₀) : bool → U₀
 | treeNode : A → forestTree A true → forestTree A false
 | forestNil : forestTree A true

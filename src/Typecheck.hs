@@ -124,21 +124,25 @@ infer (BVar _) = fail "Can't infer type of bound variables, convert them to free
 check :: Tm → Ty → InCtx ()
 check tm ty =
   do
-    ensureType ty
-    tyinf ← infer  tm
-    ty' ← whnf ty
-    tyinf' ← whnf tyinf
-    b ← conv ty' tyinf'
-    if b
-      then pure ()
+    tyinf ← infer tm
+    u ← infer ty >>= asU
+    u' ← infer tyinf >>= asU
+    ty'' ← nf ty
+    tyinf'' ← nf tyinf
+    sTm ← showTermCtx tm
+    sTy ← showTermCtx ty''
+    sTyInf ← showTermCtx tyinf''
+    let failMsg = sTm ++ " has type " ++ sTyInf ++ " but was expected to have type " ++ sTy
+    if u /= u'
+      then fail failMsg
       else do
-      ty'' ← nf ty
-      tyinf'' ← nf tyinf
-      sTm ← showTermCtx tm
-      sTy ← showTermCtx ty''
-      sTyInf ← showTermCtx tyinf''
-      fail (sTm ++ " has type " ++ sTyInf ++ " but was expected to have type " ++ sTy)
-
+      ty' ← whnf ty
+      tyinf' ← whnf tyinf
+      b ← conv ty' tyinf'
+      if b
+        then pure ()
+        else fail failMsg
+      
 checkElim :: Ind Ty → Lvl → InCtx ()
 checkElim ind lvl =
   if arSort (indArity ind) /= Prop || lvl == Prop

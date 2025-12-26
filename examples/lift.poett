@@ -1,0 +1,45 @@
+#import prelude
+
+ind lift (P : Prop) : U₀
+| up : P → lift P
+
+def down : Π(P : Prop) lift P → P
+    := λ (P : Prop),
+       elim Prop lift P (λ (_ : lift P), P) (λ (H : P), H)
+
+ind prop-box (A : U₀) : Prop
+| box : A → prop-box A
+
+#fail def unbox : Π(A : U₀) prop-box A → A
+          := λ (A : U₀), elim U₀ prop-box A (λ (_ : prop-box A), A) (λ (x : A), x)
+
+def prop-eq : Π(P : Prop) P → P → Prop
+    := λ (P : Prop),
+       λ (H₁ : P),
+       λ (H₂ : P),
+         eq (lift P) (up P H₁) (up P H₂)
+
+def prop-refl : Π(P : Prop) Π(H : P) prop-eq P H H
+    := λ (P : Prop),
+       λ (H : P),
+         refl (lift P) (up P H)
+
+axiom propext : Π(P : Prop) Π(H₁ : P) Π(H₂ : P) prop-eq P H₁ H₂
+
+def prop-eq-elim : Π(P : Prop)
+                   Π(H₁ : P)
+                   Π(T : Π(H₂ : P) prop-eq P H₁ H₂ → U₀)
+                    T H₁ (prop-refl P H₁) →
+                      Π(H₂ : P)
+                      Π(r : prop-eq P H₁ H₂) T H₂ r
+     := λ (P : Prop),
+        λ (H₁ : P),
+        λ (T : Π(H₂ : P) prop-eq P H₁ H₂ → U₀),
+        λ (T₁ : T H₁ (prop-refl P H₁)),
+        λ (H₂ : P),
+        λ (r : prop-eq P H₁ H₂),
+          elim U₀ eq (lift P) (up P H₁)
+               (elim U₁ lift P
+                  (λ (H₂ : lift P), eq (lift P) (up P H₁) H₂ → U₀)
+                  (λ (H₂ : P), T H₂)
+               ) T₁ (up P H₂) r

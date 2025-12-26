@@ -1,0 +1,45 @@
+#import nat
+
+def eta-pi : Π(A : U₀)
+               Π(B : A → U₀)
+               Π(f : Π(x : A) B x)
+                   eq (Π(x : A) B x) f (λ (x : A), f x)
+            := λ (A : U₀),
+               λ (B : A → U₀),
+               λ (f : Π(x : A) B x),
+                 refl (Π(x : A) B x) f
+
+def eta-unit : Π(x : unit) eq unit x tt
+    := λ (x : unit), refl unit tt
+
+def eta-empty : Π(x : empty) Π(y : empty) eq empty x y
+    := λ (x : empty), λ (y : empty), refl empty x
+
+#fail def eta-nat : Π(x : nat) eq nat x zero
+          := λ (x : nat), refl nat zero
+
+def unit-sq : U₀ := sig unit (λ (_ : unit), unit)
+
+def eta-prod-unit : Π(x : unit-sq)
+                    eq unit-sq x (pr unit (λ (_ : unit), unit) tt tt)
+    := λ (_ : unit-sq),
+         refl unit-sq (pr unit (λ (_ : unit), unit) tt tt)
+
+def unit-bool : U₀ := sig unit (λ (_ : unit), bool)
+
+#fail def eta-unit-bool : Π(x : unit-bool)
+                            eq unit-bool x (pr unit (λ (_ : unit), bool) tt true)
+          := λ (_ : unit-bool),
+             refl unit-bool (pr unit (λ (_ : unit), bool) tt true)
+
+def eta-pi-unit : Π(A : U₀) Π(f : A → unit) Π(g : A → unit) eq (A → unit) f g
+    := λ (A : U₀),
+       λ (f : A → unit),
+       λ (g : A → unit),
+         refl (A → unit) f
+
+#check eta-pi
+#check eta-unit
+#check eta-empty
+#check eta-prod-unit
+#check eta-pi-unit

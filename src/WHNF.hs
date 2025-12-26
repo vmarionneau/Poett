@@ -134,6 +134,58 @@ nf tm = whnf tm >>= aux
         pure $ Cast tm'' ty'
     aux t = pure t
 
+
+isUnitLike :: Ty → InCtx Bool
+isUnitLike (Pi name ty fam) =
+  do
+    name' ← addVar name ty
+    b ← whnf (instantiate [FVar name'] fam) >>= isUnitLike
+    removeDecl name'
+    pure b
+isUnitLike ty =
+  do
+    let (tm, params) = asApp ty
+    case tm of
+      Ident s →
+        do
+          { bdef ← isDef s
+          ; if bdef
+            then
+              do
+                df ← getDef s
+                case defBody df of
+                  Nothing → pure False
+                  Just ty' → whnf ty' >>= isUnitLike
+            else
+              do
+                ind ← getInd s
+                if indIndices ind /= [] || length (indParams ind) /= length params
+                  then pure False
+                  else
+                  case indConstructors ind of
+                    [] → pure True
+                    [cs] →
+                      do
+                      {
+                      ; (names, bs) ← unzip <$> aux params (csArgs cs) []
+                      ; removeDecls names
+                      ; pure $ all (\ b → b) bs
+                      }
+                    _ → pure False
+          }
+      _ → pure False
+      where
+        aux _ [] l = pure l
+        aux params ((name, arg):cargs) l =
+          do
+            let caArgs = instantiateTele (((FVar . fst) <$> l) ++ reverse params) $ argArgs arg
+            argNames ← addTelescope caArgs
+            let resArgTy = instantiate ((FVar <$> (argNames ++ (fst <$> l))) ++ reverse params) (argRes arg)
+            cty ← closeProducts argNames resArgTy
+            b ← if argRec arg then pure False else whnf cty >>= isUnitLike
+            name' ← addVar name cty
+            aux params cargs $ (name', b):l
+
 conv :: Tm → Tm → InCtx Bool
 conv tml tmr =
   do
@@ -142,7 +194,11 @@ conv tml tmr =
     aux tml' tmr'
   where
     aux (BVar i) (BVar j) = pure $ i == j
-    aux (FVar name) (FVar name') = pure $ name == name'
+    aux (FVar name) (FVar name') =
+      do
+        entry ← getLocal name
+        bUnit ← whnf (entryType entry) >>= isUnitLike
+        pure $ name == name' || bUnit
     aux (U l) (U l') = pure $ l == l'
     aux (Ident s) (Ident s') = pure $ s == s'
     aux (Pi name ty fam) (Pi _ ty' fam') =
@@ -167,6 +223,19 @@ conv tml tmr =
           ; pure b2
           }
           else pure False
+    -- Eta for product types
+    aux (Abs name ty tm) tm' =
+      do
+        name' ← addVar name ty
+        b ← conv (instantiate [FVar name'] tm) (App tm' [FVar name'])
+        removeDecl name'
+        pure b
+    aux tm (Abs name' ty' tm') =
+      do
+        name'' ← addVar name' ty'
+        b ← conv (App tm [FVar name'']) (instantiate [FVar name''] tm')
+        removeDecl name''
+        pure b
     aux (App tm args) (App tm' args') =
       do
         b1 ← conv tm tm'
@@ -176,4 +245,13 @@ conv tml tmr =
     aux (Cast tm _) (Cast tm' _) = conv tm tm'
     aux (Constr nameInd i) (Constr nameInd' j) = pure $ i == j && nameInd == nameInd'
     aux (Elim lvl nameInd) (Elim lvl' nameInd') = pure $ lvl == lvl' && nameInd == nameInd'
+    -- Eta for unit-like types
+    aux (FVar name) _ =
+      do
+        entry ← getLocal name
+        whnf (entryType entry) >>= isUnitLike
+    aux _ (FVar name') =
+      do
+        entry ← getLocal name'
+        whnf (entryType entry) >>= isUnitLike
     aux _ _ = pure False
