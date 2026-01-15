@@ -1,7 +1,7 @@
 name:                Poett
 version:             1.0.0
 github:              "vmarionneau/Poett"
-license:             BSD-3-Clause
+license:             GPL
 author:              "Virgil Marionneau"
 maintainer:          "marionneau.virgil@gmail.com"
 copyright:           "2025 Virgil Marionneau"
