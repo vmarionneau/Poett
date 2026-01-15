@@ -1,4 +1,4 @@
-#import equality
+#import nat
 
 ind list (A : U₀) : U₀
 | nil : list A
