@@ -71,10 +71,14 @@ appNe env (NeElimPart l name args) args' =
       else 
         do
           let argsElim = take (len - 1) allArgs
-          let argsRest = drop (len - 1) allArgs
+          let argsRest = drop len allArgs
           cst ← inCtxOfMaybe "Error : length of arguments of elim is too small" $ allArgs `atMay` (len - 1)
           case cst of 
-            VNe ne → pure $ VNe (NeElim l name argsElim ne)
+            VNe ne → 
+                (case argsRest of 
+                    [] → pure $ VNe (NeElim l name argsElim ne)
+                    _ → pure $ VNe (NeApp (NeElim l name argsElim ne) argsRest)
+                )
             VConstr name' i cargs → 
                 if name /= name' then fail "Error : Constructor of incorrect inductive is being eliminated"
                 else 
@@ -82,12 +86,13 @@ appNe env (NeElimPart l name args) args' =
                     { constr ← getConstr ind i
                     ; rule ← constrElimRule ind l i
                     ; if length cargs /= indParamLength ind + length (csArgs constr)
-                    ; then fail "Error : Constructor not applied to enough arguments to be eliminated"
+                    ; then fail ("Error : Constructor " ++ csName constr ++ " not applied to enough arguments to be eliminated (" ++ show (length cargs) ++ " / " ++ show (indParamLength ind + length (csArgs constr)))
                     ; else 
                       do 
                         qcargs ← mapM quote cargs
-                        qargsElim ← mapM quote argsElim 
-                        let tm = instantiate ((reverse $ drop (indParamLength ind) qcargs) ++ reverse qargsElim) rule
+                        let argsPref =  take (indParamLength ind + 1 + (length $ indConstructors ind)) argsElim
+                        qargsPref ← mapM quote argsPref 
+                        let tm = instantiate ((reverse $ drop (indParamLength ind) qcargs) ++ reverse qargsPref) rule
                         vtm ← eval env tm
                         app env vtm argsRest
                     }
@@ -104,14 +109,14 @@ quote (VPi name ty (Clos bod env)) =
      var ← addVar name nty
      vbod ← eval (VNe (NeFVar var) : env) bod
      qbod ← quote vbod
-     closeProducts [name] qbod
+     closeProducts [var] qbod
 quote (VAbs name ty (Clos bod env)) = 
     do
      nty ← quote ty
      var ← addVar name nty
      vbod ← eval (VNe (NeFVar var) : env) bod
      qbod ← quote vbod
-     closeAbs [name] qbod
+     closeAbs [var] qbod
 quote (VConstr name i args) = 
     do
       qargs ← mapM quote args
@@ -124,7 +129,9 @@ quoteNe (NeApp ne args) =
     do 
       qargs ← mapM quote args
       tm ← quoteNe ne
-      pure $ App tm qargs
+      case tm of 
+        App f args' → pure $ App f (args' ++ qargs)
+        _ → pure $ App tm qargs
 quoteNe (NeIdent s) = pure $ Ident s
 quoteNe (NeElimPart l name args) = 
      do

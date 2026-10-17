@@ -84,6 +84,7 @@ data Token
   | NFTok
   | HNFTok
   | WHNFTok
+  | NbETok
   | Lambda
   | PiTok
   | ArrowTok
@@ -351,6 +352,9 @@ hnfTok = notFollowed (string "#hnf") alphaNum >> pure HNFTok
 whnfTok :: Parser (Stream Char) Token
 whnfTok = notFollowed (string "#whnf") alphaNum >> pure WHNFTok
 
+nbeTok :: Parser (Stream Char) Token
+nbeTok = notFollowed (string "#nbe") alphaNum >> pure NbETok
+
 lparen :: Parser (Stream Char) Token
 lparen = char '(' >> pure LParen
 
@@ -382,6 +386,7 @@ token = oneOf
         , nfTok
         , hnfTok
         , whnfTok
+        , nbeTok
         , lparen
         , rparen
         , lbracket
@@ -726,6 +731,15 @@ whnfCmd =
     deanchor
     pure $ (WHNF tm) @< beg
 
+nbeCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+nbeCmd =
+  do
+    beg ← parseTok NbETok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (NbE tm) @< beg
+
 command :: Parser (Scoped (Loc Token)) (Loc Command)
 command = oneOf
           [ definition
@@ -739,6 +753,7 @@ command = oneOf
           , nfCmd
           , hnfCmd
           , whnfCmd
+          , nbeCmd
           ]
 
 script :: Parser (Scoped (Loc Token)) [Loc Command]

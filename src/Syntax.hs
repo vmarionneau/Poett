@@ -41,4 +41,5 @@ data Command
   | NF PTm
   | HNF PTm
   | WHNF PTm
+  | NbE PTm
   deriving (Eq, Show)

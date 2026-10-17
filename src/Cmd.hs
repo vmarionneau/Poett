@@ -9,6 +9,7 @@ import Term
 import Ctx
 import Parser
 import WHNF
+import NbE
 import Typecheck
 import Elab
 import Data.Maybe (fromMaybe)
@@ -133,6 +134,16 @@ processWHNF ptm =
     sTm ← showTermCtx tm'
     pure $ putStrLn sTm
 
+processNbE :: PTm → InCtx (IO ())
+processNbE ptm =
+  do
+    tm ← toTerm ptm
+    _ ← infer tm
+    vtm' ← eval [] tm
+    tm' ← quote vtm'
+    sTm ← showTermCtx tm'
+    pure $ putStrLn sTm
+
 unpackForIO :: InCtx (IO ()) → FilePath → Ctx → IO (Either String Ctx)
 unpackForIO mx _ ctx =
   do
@@ -153,6 +164,7 @@ processCommand (Fail cmd) = processFail cmd
 processCommand (NF ptm) = unpackForIO $ processNF ptm
 processCommand (HNF ptm) = unpackForIO $ processHNF ptm
 processCommand (WHNF ptm) = unpackForIO $ processWHNF ptm
+processCommand (NbE ptm) = unpackForIO $ processNbE ptm
 
 processInput :: String → FilePath → Ctx → IO (Either String Ctx)
 processInput input path ctx =
