@@ -60,7 +60,8 @@ def wlistToList : Π(A : U₀) wlist A → list A
              )
 
 def foo₀ : list unit
-    := cons unit tt (cons unit tt (nil unit))
+    := nil unit 
+-- cons unit tt (cons unit tt (nil unit))
 
 def bar₀ : wlist unit
     := listToWlist unit foo₀
@@ -71,5 +72,8 @@ def oof : list unit
 #check (refl (list unit) foo₀ : eq (list unit) foo₀ oof)
 
 #nf foo₀
+#nbe foo₀
 #nf bar₀
+#nbe bar₀
 #nf oof
+#nbe oof 

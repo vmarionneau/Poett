@@ -7,9 +7,15 @@ import Term
 import Ctx
 import Elim
 import Value
+import Typecheck (indType)
 
 eval :: [VTm] → Tm → InCtx VTm
-eval _ (FVar x) = pure $ VNe (NeFVar x)
+eval env (FVar x) = 
+    do 
+      entry ← getLocal x
+      let ty = entryType entry
+      vty ← eval env ty
+      pure $ VNe (NeFVar x) vty
 eval env (BVar x) = inCtxOfMaybe "Variable not in scope" $ env `atMay` x
 eval _ (U l) = pure $ VU l
 eval env (Pi name ty bod) = 
@@ -36,18 +42,30 @@ eval env (Ident s) =
       if bdef then
         do
         { df ← getDef s
+        ; let ty = defType df
+        ; vty ← eval env ty
         ; case defBody df of
-            Nothing → pure $ VNe $ NeIdent s
+            Nothing → pure $ VNe (NeIdent s) vty
             Just e → eval env e
         } 
-      else pure $ VNe $ NeIdent s
+      else
+        do
+          ind ← getInd s
+          ty ← indType ind
+          vty ← eval env ty
+          pure $ VNe (NeIdent s) vty
 eval env (Cast tm _) = eval env tm
 eval _ (Constr name i) = pure $ VConstr name i []
-eval _ (Elim l name) = pure $ VNe (NeElimPart l name [])
+eval env (Elim l name) = 
+    do
+      ind ← getInd name
+      ty ← elimType ind l
+      vty ← eval env ty
+      pure $ VNe (NeElimPart l name []) vty
 
 app :: [VTm] → VTm → [VTm] → InCtx VTm
 app _ tm [] = pure tm
-app env (VNe ne) args = appNe env ne args
+app env (VNe ne vty) args = appNe env vty ne args
 app _ (VConstr name i cargs) args = pure $ VConstr name i (cargs ++ args)
 app _ (VAbs _ _ (Clos bod env')) args = appClos bod env' args
 app _ _ _ = fail "Expected abstraction, constructor or neutral"
@@ -59,25 +77,40 @@ appClos tm env (arg:args) =
     vtm ← eval (arg:env) tm
     app env vtm args
 
-appNe :: [VTm] → Ne → [VTm] → InCtx VTm
-appNe _ (NeApp ne args) args' = pure $ VNe $ NeApp ne (args ++ args')
-appNe env (NeElimPart l name args) args' = 
+compNeArgs :: VTy → [VTm] → InCtx ([Val], VTy)
+compNeArgs ty args = aux ty args []
+    where
+      aux vty [] vargs = pure $ (reverse vargs, vty)
+      aux (VPi _ tyd (Clos bod env)) (vtm:vtms) vargs = 
+        do 
+          vty' ← eval (vtm:env) bod
+          aux vty' vtms (Val vtm tyd : vargs)
+      aux _ _ _ = fail "Expected product type when applying neutral"
+
+
+appNe :: [VTm] → VTy → Ne → [VTm] → InCtx VTm
+appNe _ vty (NeApp ne args) args' = 
+    do
+      (argsVal, vty') ← compNeArgs vty args'
+      pure $ VNe (NeApp ne (args ++ argsVal)) vty'
+appNe env vty (NeElimPart l name args) args' = 
     do 
       ind ← getInd name
-      let allArgs = args ++ args'
+      (argsVal, vty') ← compNeArgs vty args'
+      let allArgs = args ++ argsVal
       let len = elimArgLength ind
       if length allArgs < len 
-      then pure $ VNe (NeElimPart l name allArgs)
+      then pure $ VNe (NeElimPart l name allArgs) vty'
       else 
         do
           let argsElim = take (len - 1) allArgs
           let argsRest = drop len allArgs
-          cst ← inCtxOfMaybe "Error : length of arguments of elim is too small" $ allArgs `atMay` (len - 1)
+          Val cst _ ← inCtxOfMaybe "Error : length of arguments of elim is too small" $ allArgs `atMay` (len - 1)
           case cst of 
-            VNe ne → 
+            VNe ne _ → 
                 (case argsRest of 
-                    [] → pure $ VNe (NeElim l name argsElim ne)
-                    _ → pure $ VNe (NeApp (NeElim l name argsElim ne) argsRest)
+                    [] → pure $ VNe (NeElim l name argsElim ne) vty'
+                    _ → pure $ VNe (NeApp (NeElim l name argsElim ne) argsRest) vty'
                 )
             VConstr name' i cargs → 
                 if name /= name' then fail "Error : Constructor of incorrect inductive is being eliminated"
@@ -91,17 +124,20 @@ appNe env (NeElimPart l name args) args' =
                       do 
                         qcargs ← mapM quote cargs
                         let argsPref =  take (indParamLength ind + 1 + (length $ indConstructors ind)) argsElim
-                        qargsPref ← mapM quote argsPref 
+                        qargsPref ← mapM quoteVal argsPref 
                         let tm = instantiate ((reverse $ drop (indParamLength ind) qcargs) ++ reverse qargsPref) rule
                         vtm ← eval env tm
-                        app env vtm argsRest
+                        app env vtm ((\ x → let Val y _ = x in y) <$> argsRest)
                     }
             _ → fail "Error : Expected constructor or neutral when applying eliminator"
 
-appNe _ ne args = pure $ VNe $ NeApp ne args
+appNe _ vty ne args = 
+    do 
+      (args', vty') ← compNeArgs vty args
+      pure $ VNe (NeApp ne args') vty'
 
 quote :: VTm → InCtx Tm
-quote (VNe ne) = quoteNe ne
+quote (VNe ne vty) = quoteNe ne vty
 quote (VU l) = pure $ U l
 quote (VPi name ty (Clos bod env)) = 
     do
