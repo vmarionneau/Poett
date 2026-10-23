@@ -148,7 +148,7 @@ getDef s =
   do
     defs ← getDefCtx
     case defs !? s of
-      Nothing → fail $ "Not defined : " ++ s
+      Nothing → fail $ "Not a defined identifier : " ++ s
       Just def → pure def
 
 isInd :: String → InCtx Bool
@@ -177,7 +177,7 @@ getInd s =
   do
     inds ← getIndCtx
     case inds !? s of
-      Nothing → fail $ "Not defined : " ++ s
+      Nothing → fail $ "Not a defined inductive type : " ++ s
       Just ind → pure ind
 
 getConstr :: Ind Ty → Int → InCtx (Constructor Ty)

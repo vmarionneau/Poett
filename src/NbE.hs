@@ -323,7 +323,7 @@ unitLikeWitness ty =
                       do
                       {
                       ; tms ← aux params (csArgs cs) []
-                      ; pure $ App (Ident (csName cs)) tms
+                      ; pure $ App (Constr s 0 ) tms
                       }
                     _ → fail "Not a unit-like type"
           }
