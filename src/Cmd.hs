@@ -9,6 +9,7 @@ import Term
 import Ctx
 import Parser
 import WHNF
+import Value
 import NbE
 import Typecheck
 import Elab
@@ -138,9 +139,10 @@ processNbE :: PTm → InCtx (IO ())
 processNbE ptm =
   do
     tm ← toTerm ptm
-    _ ← infer tm
+    ty ← infer tm
+    vty ← eval [] ty
     vtm' ← eval [] tm
-    tm' ← quote vtm'
+    tm' ← quoteVal (Val vtm' vty)
     sTm ← showTermCtx tm'
     pure $ putStrLn sTm
 

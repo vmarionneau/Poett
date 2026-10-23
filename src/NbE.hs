@@ -7,7 +7,7 @@ import Term
 import Ctx
 import Elim
 import Value
-import Typecheck (indType)
+import Typecheck (indType, constrType)
 
 eval :: [VTm] → Tm → InCtx VTm
 eval env (FVar x) = 
@@ -87,6 +87,13 @@ compNeArgs ty args = aux ty args []
           aux vty' vtms (Val vtm tyd : vargs)
       aux _ _ _ = fail "Expected product type when applying neutral"
 
+compConstrArgsTy :: String → Int → [VTm] → InCtx ([Val], VTy)
+compConstrArgsTy nameInd i args = 
+    do
+      ind ← getInd nameInd
+      ty ← constrType ind i
+      vty ← eval [] ty
+      compNeArgs vty args
 
 appNe :: [VTm] → VTy → Ne → [VTm] → InCtx VTm
 appNe _ vty (NeApp ne args) args' = 
@@ -122,7 +129,8 @@ appNe env vty (NeElimPart l name args) args' =
                     ; then fail ("Error : Constructor " ++ csName constr ++ " not applied to enough arguments to be eliminated (" ++ show (length cargs) ++ " / " ++ show (indParamLength ind + length (csArgs constr)))
                     ; else 
                       do 
-                        qcargs ← mapM quote cargs
+                        (vcargs, _) ← compConstrArgsTy name' i cargs
+                        qcargs ← mapM quoteVal vcargs
                         let argsPref =  take (indParamLength ind + 1 + (length $ indConstructors ind)) argsElim
                         qargsPref ← mapM quoteVal argsPref 
                         let tm = instantiate ((reverse $ drop (indParamLength ind) qcargs) ++ reverse qargsPref) rule
@@ -136,6 +144,42 @@ appNe _ vty ne args =
       (args', vty') ← compNeArgs vty args
       pure $ VNe (NeApp ne args') vty'
 
+dummyU :: VTy 
+dummyU = VU Prop
+
+quoteVal :: Val → InCtx Tm
+quoteVal (Val tm ty) = aux tm ty
+    where 
+      aux (VU l) (VU _) = pure $ U l
+      aux (VPi name vty (Clos bod env)) (VU l) = 
+          do
+           nty ← aux vty (VU l)
+           var ← addVar name nty
+           vbod ← eval (VNe (NeFVar var) ty : env) bod
+           -- TODO : Quote with proper universe if doable
+           qbod ← aux vbod (VU l)
+           closeProducts [var] qbod
+      aux vtm (VPi name vty (Clos cod env)) = 
+          do
+           qty ← aux vty dummyU
+           var ← addVar name qty
+           vbod ← app [] vtm [VNe (NeFVar var) vty]
+           icod ← appClos cod env [VNe (NeFVar var) vty]
+           qbod ← aux vbod icod
+           closeAbs [var] qbod
+      aux (VConstr name i args) _ = 
+          do
+            (vargs, vty) ← compConstrArgsTy name i args
+            qty ← aux vty dummyU
+            let (tys, _) = unravelPi (-1) qty
+            names ← addTelescope tys
+            qargs ← mapM quoteVal vargs
+            let qtm = App (Constr name i) (qargs ++ (FVar <$> names))
+            closeAbs names qtm
+      aux (VNe ne _) _ = quoteNe ne
+      aux _ _ = fail "Ill-typed quote"
+  
+{--
 quote :: VTm → InCtx Tm
 quote (VNe ne vty) = quoteNe ne vty
 quote (VU l) = pure $ U l
@@ -157,13 +201,15 @@ quote (VConstr name i args) =
     do
       qargs ← mapM quote args
       pure $ App (Constr name i) qargs
-
+--}
+--
+--
 quoteNe :: Ne → InCtx Tm
 quoteNe (NeFVar name) = pure $ FVar name
 quoteNe (NeBVar _) = fail "Quoting a bound variable should never happen"
 quoteNe (NeApp ne args) = 
     do 
-      qargs ← mapM quote args
+      qargs ← mapM quoteVal args
       tm ← quoteNe ne
       case tm of 
         App f args' → pure $ App f (args' ++ qargs)
@@ -171,11 +217,10 @@ quoteNe (NeApp ne args) =
 quoteNe (NeIdent s) = pure $ Ident s
 quoteNe (NeElimPart l name args) = 
      do
-      qargs ← mapM quote args
+      qargs ← mapM quoteVal args
       pure $ App (Elim l name) qargs
 quoteNe (NeElim l name args ne) = 
      do
-      qargs ← mapM quote args
+      qargs ← mapM quoteVal args
       tm ← quoteNe ne
       pure $ App (Elim l name) (qargs ++ [tm])
- 
