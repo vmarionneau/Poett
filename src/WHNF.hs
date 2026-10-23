@@ -134,7 +134,6 @@ nf tm = whnf tm >>= aux
         pure $ Cast tm'' ty'
     aux t = pure t
 
-
 isUnitLike :: Ty → InCtx Bool
 isUnitLike (Pi name ty fam) =
   do
@@ -163,7 +162,6 @@ isUnitLike ty =
                   then pure False
                   else
                   case indConstructors ind of
-                    [] → pure True
                     [cs] →
                       do
                       {
@@ -185,6 +183,55 @@ isUnitLike ty =
             b ← if argRec arg then pure False else whnf cty >>= isUnitLike
             name' ← addVar name cty
             aux params cargs $ (name', b):l
+
+unitLikeWitness :: Ty → InCtx Tm
+unitLikeWitness (Pi name ty fam) =
+  do
+    name' ← addVar name ty
+    let ty' = instantiate [FVar name'] fam
+    tm ← whnf ty' >>= unitLikeWitness
+    closeAbs [name'] tm
+unitLikeWitness ty =
+  do
+    let (tm, params) = asApp ty
+    case tm of
+      Ident s →
+        do
+          { bdef ← isDef s
+          ; if bdef
+            then
+              do
+                df ← getDef s
+                case defBody df of
+                  Nothing → fail "Not a unit-like type"
+                  Just ty' → whnf ty' >>= unitLikeWitness 
+            else
+              do
+                ind ← getInd s
+                if indIndices ind /= [] || length (indParams ind) /= length params
+                then fail "Not a unit-like type"                  
+                else
+                  case indConstructors ind of
+                    [cs] →
+                      do
+                      {
+                      ; tms ← aux params (csArgs cs) []
+                      ; pure $ App (Ident (csName cs)) tms
+                      }
+                    _ → fail "Not a unit-like type"
+          }
+      _ → fail "Not a unit-like type"
+      where
+        aux _ [] tms = pure tms
+        aux params ((_,arg):cargs) tms =
+          do
+            let caArgs = instantiateTele (tms ++ reverse params) $ argArgs arg
+            argNames ← addTelescope caArgs
+            let resArgTy = instantiate ((FVar <$> argNames) ++ tms ++ reverse params) (argRes arg)
+            cty ← closeProducts argNames resArgTy
+            tm ← if argRec arg then fail "Not a unit-like type" else whnf cty >>= unitLikeWitness 
+            aux params cargs $ tm:tms
+
 
 conv :: Tm → Tm → InCtx Bool
 conv tml tmr =

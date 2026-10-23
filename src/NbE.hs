@@ -8,6 +8,7 @@ import Ctx
 import Elim
 import Value
 import Typecheck (indType, constrType)
+import WHNF (isUnitLike, unitLikeWitness)
 
 eval :: [VTm] → Tm → InCtx VTm
 eval env (FVar x) = 
@@ -176,7 +177,12 @@ quoteVal (Val tm ty) = aux tm ty
             qargs ← mapM quoteVal vargs
             let qtm = App (Constr name i) (qargs ++ (FVar <$> names))
             closeAbs names qtm
-      aux (VNe ne _) _ = quoteNe ne
+      aux (VNe ne _) vty = 
+        do qty ← aux vty dummyU        
+           b ← isUnitLike qty
+           if b
+           then unitLikeWitness qty
+           else quoteNe ne
       aux _ _ = fail "Ill-typed quote"
   
 {--
