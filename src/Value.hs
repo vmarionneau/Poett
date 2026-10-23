@@ -6,7 +6,7 @@ import Name
 import Term
 
 data Clos a = Clos { closTm :: a , closEnv :: [VTm]}
-    deriving Eq
+   deriving (Eq, Show)
 
 
 data VTm
@@ -15,10 +15,10 @@ data VTm
   | VPi Name VTy (Clos Ty)
   | VAbs Name VTy (Clos Ty)
   | VConstr String Int [VTm]
-  deriving Eq
+  deriving (Eq, Show)
 
 data Val = Val VTm VTy
-  deriving Eq
+  deriving (Eq, Show)
 
 data Ne
   = NeFVar Name
@@ -27,7 +27,7 @@ data Ne
   | NeIdent String
   | NeElimPart Lvl String [Val]
   | NeElim Lvl String [Val] Ne
-  deriving Eq
+  deriving (Eq, Show)
 
 type VTy = VTm
 

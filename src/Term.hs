@@ -34,10 +34,23 @@ data Tm
   | Cast Tm Ty
   | Constr String Int
   | Elim Lvl String
-  deriving Eq
 
 type Ty = Tm
 
+instance Eq Tm where
+    (FVar x) == (FVar y) = x == y
+    (BVar i) == (BVar j) = i == j
+    (U l) == (U l') = l == l'
+    (Pi _ ty cod) == (Pi _ ty' cod') = ty == ty' && cod == cod'
+    (Abs _ ty bod) == (Abs _ ty' bod') = ty == ty' && bod == bod'
+    (App tm args) == (App tm' args') = tm == tm' && args == args'
+    (Let _ ty tm bod) == (Let _ ty' tm' bod') = ty == ty' && tm == tm' && bod == bod'
+    (Ident s) == (Ident s') = s == s'
+    (Cast tm ty) == (Cast tm' ty') = tm == tm' && ty == ty'
+    (Constr s i) == (Constr s' j) = s == s' && i == j
+    (Elim s l) == (Elim s' l') = s == s' && l == l'
+    _ == _ = False
+    
 atMay :: [a] -> Int -> Maybe a
 atMay [] _ = Nothing
 atMay (h:_) 0 = Just h

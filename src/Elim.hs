@@ -4,6 +4,7 @@ module Elim (module Elim) where
 import Name
 import Term
 import Ind
+import IndUtils
 import Ctx
 
 -- Pop at most 'depth' products from a term
@@ -27,15 +28,7 @@ elimFam lvl ind paramNames =
     dummy ← freshName (named "x")
     let ty = Pi dummy resIndTy (U lvl)
     closeProducts indicesNames ty
-
-csArgType :: [Name] → [Name] → CsArg Ty → InCtx Ty
-csArgType paramNames csArgNames arg =
-  do
-    let args = instantiateTele (FVar <$> (csArgNames ++ paramNames)) $ argArgs arg
-    argNames ← addTelescope args
-    let resArgTy = instantiate (FVar <$> (argNames ++ csArgNames ++ paramNames)) (argRes arg)
-    closeProducts argNames resArgTy
-    
+  
 csRecArgMotive :: Ind Ty → [Name] → Name → [Name] → Name → CsArg Ty → InCtx Ty
 csRecArgMotive ind paramNames famName csArgNames nonrec arg =
   do

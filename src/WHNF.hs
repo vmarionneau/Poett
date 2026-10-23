@@ -5,6 +5,7 @@ module WHNF (module WHNF) where
 import Name
 import Ind
 import Term
+import NbE
 import Ctx
 import Elim
 
@@ -134,107 +135,8 @@ nf tm = whnf tm >>= aux
         pure $ Cast tm'' ty'
     aux t = pure t
 
-isUnitLike :: Ty → InCtx Bool
-isUnitLike (Pi name ty fam) =
-  do
-    name' ← addVar name ty
-    b ← whnf (instantiate [FVar name'] fam) >>= isUnitLike
-    removeDecl name'
-    pure b
-isUnitLike ty =
-  do
-    let (tm, params) = asApp ty
-    case tm of
-      Ident s →
-        do
-          { bdef ← isDef s
-          ; if bdef
-            then
-              do
-                df ← getDef s
-                case defBody df of
-                  Nothing → pure False
-                  Just ty' → whnf ty' >>= isUnitLike
-            else
-              do
-                ind ← getInd s
-                if indIndices ind /= [] || length (indParams ind) /= length params
-                  then pure False
-                  else
-                  case indConstructors ind of
-                    [cs] →
-                      do
-                      {
-                      ; (names, bs) ← unzip <$> aux params (csArgs cs) []
-                      ; removeDecls names
-                      ; pure $ all (\ b → b) bs
-                      }
-                    _ → pure False
-          }
-      _ → pure False
-      where
-        aux _ [] l = pure l
-        aux params ((name, arg):cargs) l =
-          do
-            let caArgs = instantiateTele (((FVar . fst) <$> l) ++ reverse params) $ argArgs arg
-            argNames ← addTelescope caArgs
-            let resArgTy = instantiate ((FVar <$> (argNames ++ (fst <$> l))) ++ reverse params) (argRes arg)
-            cty ← closeProducts argNames resArgTy
-            b ← if argRec arg then pure False else whnf cty >>= isUnitLike
-            name' ← addVar name cty
-            aux params cargs $ (name', b):l
-
-unitLikeWitness :: Ty → InCtx Tm
-unitLikeWitness (Pi name ty fam) =
-  do
-    name' ← addVar name ty
-    let ty' = instantiate [FVar name'] fam
-    tm ← whnf ty' >>= unitLikeWitness
-    closeAbs [name'] tm
-unitLikeWitness ty =
-  do
-    let (tm, params) = asApp ty
-    case tm of
-      Ident s →
-        do
-          { bdef ← isDef s
-          ; if bdef
-            then
-              do
-                df ← getDef s
-                case defBody df of
-                  Nothing → fail "Not a unit-like type"
-                  Just ty' → whnf ty' >>= unitLikeWitness 
-            else
-              do
-                ind ← getInd s
-                if indIndices ind /= [] || length (indParams ind) /= length params
-                then fail "Not a unit-like type"                  
-                else
-                  case indConstructors ind of
-                    [cs] →
-                      do
-                      {
-                      ; tms ← aux params (csArgs cs) []
-                      ; pure $ App (Ident (csName cs)) tms
-                      }
-                    _ → fail "Not a unit-like type"
-          }
-      _ → fail "Not a unit-like type"
-      where
-        aux _ [] tms = pure tms
-        aux params ((_,arg):cargs) tms =
-          do
-            let caArgs = instantiateTele (tms ++ reverse params) $ argArgs arg
-            argNames ← addTelescope caArgs
-            let resArgTy = instantiate ((FVar <$> argNames) ++ tms ++ reverse params) (argRes arg)
-            cty ← closeProducts argNames resArgTy
-            tm ← if argRec arg then fail "Not a unit-like type" else whnf cty >>= unitLikeWitness 
-            aux params cargs $ tm:tms
-
-
-conv :: Tm → Tm → InCtx Bool
-conv tml tmr =
+convLegacy :: Tm → Tm → InCtx Bool
+convLegacy tml tmr =
   do
     tml' ← whnf tml
     tmr' ← whnf tmr
@@ -250,22 +152,22 @@ conv tml tmr =
     aux (Ident s) (Ident s') = pure $ s == s'
     aux (Pi name ty fam) (Pi _ ty' fam') =
       do
-        b1 ← conv ty ty'
+        b1 ← convLegacy ty ty'
         if b1
           then do
           { name' ← addVar name ty
-          ; b2 ← conv (instantiate [FVar name'] fam) (instantiate [FVar name'] fam')
+          ; b2 ← convLegacy (instantiate [FVar name'] fam) (instantiate [FVar name'] fam')
           ; removeDecl name'
           ; pure b2
           }
           else pure False
     aux (Abs name ty tm) (Abs _ ty' tm') =
       do
-        b1 ← conv ty ty'
+        b1 ← convLegacy ty ty'
         if b1
           then do
           { name' ← addVar name ty
-          ; b2 ← conv (instantiate [FVar name'] tm) (instantiate [FVar name'] tm')
+          ; b2 ← convLegacy (instantiate [FVar name'] tm) (instantiate [FVar name'] tm')
           ; removeDecl name'
           ; pure b2
           }
@@ -274,22 +176,22 @@ conv tml tmr =
     aux (Abs name ty tm) tm' =
       do
         name' ← addVar name ty
-        b ← conv (instantiate [FVar name'] tm) (App tm' [FVar name'])
+        b ← convLegacy (instantiate [FVar name'] tm) (App tm' [FVar name'])
         removeDecl name'
         pure b
     aux tm (Abs name' ty' tm') =
       do
         name'' ← addVar name' ty'
-        b ← conv (App tm [FVar name'']) (instantiate [FVar name''] tm')
+        b ← convLegacy (App tm [FVar name'']) (instantiate [FVar name''] tm')
         removeDecl name''
         pure b
     aux (App tm args) (App tm' args') =
       do
-        b1 ← conv tm tm'
+        b1 ← convLegacy tm tm'
         let b2 = length args == length args'
-        b3s ← mapM (uncurry conv) $ zip args args'
+        b3s ← mapM (uncurry convLegacy) $ zip args args'
         pure $ b1 && b2 && all id b3s 
-    aux (Cast tm _) (Cast tm' _) = conv tm tm'
+    aux (Cast tm _) (Cast tm' _) = convLegacy tm tm'
     aux (Constr nameInd i) (Constr nameInd' j) = pure $ i == j && nameInd == nameInd'
     aux (Elim lvl nameInd) (Elim lvl' nameInd') = pure $ lvl == lvl' && nameInd == nameInd'
     -- Eta for unit-like types

@@ -4,11 +4,15 @@ module Typecheck (module Typecheck) where
 
 import Name
 import Ind
+import IndUtils
 import Term
 import Ctx
 import Elim
-import WHNF
+import NbE
 import Control.Monad (foldM, void)
+
+-- TODO : Remove last use of whnf
+import WHNF (whnf)
 
 piLvl :: Lvl → Lvl → Lvl
 piLvl _ Prop = Prop
@@ -28,43 +32,7 @@ asPi ty =
   do
     sTy ← showTermCtx ty
     fail $ "Expected product got " ++ sTy
-
-arToType :: [Name] → Arity Ty → InCtx Ty
-arToType paramNames ar =
-  do
-    let args = arArgs ar
-    argNames ← addTelescope $ instantiateTele (FVar <$> paramNames) args
-    closeProducts argNames $ U (arSort ar)
-
-indType :: Ind Ty → InCtx Ty
-indType ind =
-  do
-    let params = indParams ind
-    paramNames ← addTelescope params
-    arType ← arToType paramNames (indArity ind)
-    closeProducts paramNames arType
-    
-constrType :: Ind Ty → Int → InCtx Ty
-constrType ind i =
-  do
-    cst ← getConstr ind i
-    let params = indParams ind
-    paramNames ← addTelescope params
-    let args = csArgs cst
-    argNames ← aux paramNames args []
-    closeProducts (argNames ++ paramNames)
-      $ App (Ident (indName ind))
-      $ (FVar <$> reverse paramNames)
-      ++ (instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst)
-      where
-        aux :: [Name] → [(Name, CsArg Ty)] → [Name] → InCtx [Name]
-        aux _ [] csArgNames = pure csArgNames
-        aux paramNames ((argName, arg):args) csArgNames =
-          do
-            argType ← csArgType paramNames csArgNames arg
-            argName' ← addVar argName argType
-            aux paramNames args (argName':csArgNames)
-            
+           
 infer :: Tm → InCtx Ty
 infer (FVar name) =
   do
@@ -75,10 +43,10 @@ infer (U (Type i)) = pure $ U (Type (i + 1))
 infer (Pi name ty fam) =
   do
     u ← infer ty
-    lvl ← whnf u >>= asU
+    lvl ← normTy u >>= asU
     var ← addVar name ty
     u' ← infer $ instantiate [FVar var] fam
-    lvl' ← whnf u' >>= asU
+    lvl' ← normTy u' >>= asU
     removeDecl var
     pure $ U (piLvl lvl lvl')
 infer (Let name ty tm1 tm2) =
@@ -105,7 +73,7 @@ infer (App tm args) =
     ty ← infer tm
     foldM (\ aty arg →
               do
-                (_, tyarg, tyres) ← whnf aty >>= asPi
+                (_, tyarg, tyres) ← normTy aty >>= asPi
                 check arg tyarg
                 pure $ instantiate [arg] tyres
           ) ty args
@@ -127,8 +95,8 @@ check tm ty =
     tyinf ← infer tm
     u ← infer ty >>= asU
     u' ← infer tyinf >>= asU
-    ty'' ← nf ty
-    tyinf'' ← nf tyinf
+    ty'' ← normTy ty
+    tyinf'' ← normTy tyinf
     sTm ← showTermCtx tm
     sTy ← showTermCtx ty''
     sTyInf ← showTermCtx tyinf''
@@ -136,9 +104,7 @@ check tm ty =
     if u /= u'
       then fail failMsg
       else do
-      ty' ← whnf ty
-      tyinf' ← whnf tyinf
-      b ← conv ty' tyinf'
+      b ← convTy ty tyinf
       if b
         then pure ()
         else fail failMsg
@@ -158,13 +124,14 @@ checkElim ind lvl =
                  ; let args = csArgs cst
                  ; argNames ← aux paramNames args []
                  ; let retIndices = instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst
+                 ; -- TODO : fold properly with the right type over this
                  ; normIndices ← mapM whnf retIndices
                  ; void $
                    mapM (\ name → 
                            do
                              { ty ← infer (FVar name)
                              ; u ← infer ty
-                             ; lvl' ← whnf u >>= asU
+                             ; lvl' ← normTy u >>= asU
                              ; if lvl' == Prop
                                then pure ()
                                else if FVar name `elem` normIndices then pure ()
@@ -187,7 +154,7 @@ ensureType :: Ty → InCtx ()
 ensureType ty =
   do
     u ← infer ty
-    void $ whnf u >>= asU
+    void $ normTy u >>= asU
 
 showTermCtx :: Tm → InCtx String
 showTermCtx (FVar name) = pure $ show name
@@ -264,25 +231,6 @@ showTermCtx tm@(Constr nameInd i) =
       Left _ → pure $ show tm
       Right cst → pure $ csName cst
 showTermCtx (Elim lvl nameInd) = pure $ "elim " ++ show lvl ++ " " ++ nameInd
-
-constrType' :: [Name] → Ind Ty → Int → InCtx Ty
-constrType' paramNames ind i =
-  do
-    cst ← getConstr ind i
-    let args = csArgs cst
-    argNames ← aux args []
-    closeProducts argNames
-      $ App (Ident (indName ind))
-      $ (FVar <$> reverse paramNames)
-      ++ (instantiate (FVar <$> (argNames ++ paramNames)) <$> csResIndices cst)
-      where
-        aux :: [(Name, CsArg Ty)] → [Name] → InCtx [Name]
-        aux [] csArgNames = pure csArgNames
-        aux ((argName, arg):args) csArgNames =
-          do
-            argType ← csArgType paramNames csArgNames arg
-            argName' ← addVar argName argType
-            aux args (argName':csArgNames)
 
 showIndCtx :: Ind Ty → InCtx String
 showIndCtx ind =

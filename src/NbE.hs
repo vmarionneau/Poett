@@ -2,21 +2,22 @@
 
 module NbE (module NbE) where
 
-import Ind
 import Term
+import Ind
+import IndUtils
 import Ctx
 import Elim
 import Value
-import Typecheck (indType, constrType)
-import WHNF (isUnitLike, unitLikeWitness)
 
 eval :: [VTm] → Tm → InCtx VTm
 eval env (FVar x) = 
-    do 
+    do
       entry ← getLocal x
       let ty = entryType entry
       vty ← eval env ty
-      pure $ VNe (NeFVar x) vty
+      case entryDef entry of
+        Nothing → pure $ VNe (NeFVar x) vty
+        Just def → eval env def
 eval env (BVar x) = inCtxOfMaybe "Variable not in scope" $ env `atMay` x
 eval _ (U l) = pure $ VU l
 eval env (Pi name ty bod) = 
@@ -86,7 +87,7 @@ compNeArgs ty args = aux ty args []
         do 
           vty' ← eval (vtm:env) bod
           aux vty' vtms (Val vtm tyd : vargs)
-      aux _ _ _ = fail "Expected product type when applying neutral"
+      aux _ _ _ = fail $ "Expected product type when applying neutral"
 
 compConstrArgsTy :: String → Int → [VTm] → InCtx ([Val], VTy)
 compConstrArgsTy nameInd i args = 
@@ -145,24 +146,26 @@ appNe _ vty ne args =
       (args', vty') ← compNeArgs vty args
       pure $ VNe (NeApp ne args') vty'
 
-dummyU :: VTy 
-dummyU = VU Prop
+dummyU :: Ty 
+dummyU = U (Type (-1))
+
+dummyVU :: VTy 
+dummyVU = VU (Type (-1))
 
 quoteVal :: Val → InCtx Tm
 quoteVal (Val tm ty) = aux tm ty
     where 
       aux (VU l) (VU _) = pure $ U l
-      aux (VPi name vty (Clos bod env)) (VU l) = 
+      aux (VPi name vty (Clos bod env)) (VU _) = 
           do
-           nty ← aux vty (VU l)
+           nty ← aux vty dummyVU
            var ← addVar name nty
-           vbod ← eval (VNe (NeFVar var) ty : env) bod
-           -- TODO : Quote with proper universe if doable
-           qbod ← aux vbod (VU l)
+           vbod ← eval (VNe (NeFVar var) vty : env) bod
+           qbod ← aux vbod dummyVU
            closeProducts [var] qbod
       aux vtm (VPi name vty (Clos cod env)) = 
           do
-           qty ← aux vty dummyU
+           qty ← aux vty dummyVU
            var ← addVar name qty
            vbod ← app [] vtm [VNe (NeFVar var) vty]
            icod ← appClos cod env [VNe (NeFVar var) vty]
@@ -171,45 +174,20 @@ quoteVal (Val tm ty) = aux tm ty
       aux (VConstr name i args) _ = 
           do
             (vargs, vty) ← compConstrArgsTy name i args
-            qty ← aux vty dummyU
+            qty ← aux vty dummyVU
             let (tys, _) = unravelPi (-1) qty
             names ← addTelescope tys
             qargs ← mapM quoteVal vargs
             let qtm = App (Constr name i) (qargs ++ (FVar <$> names))
             closeAbs names qtm
-      aux (VNe ne _) vty = 
-        do qty ← aux vty dummyU        
+      aux (VNe ne vty) _ = 
+        do qty ← aux vty dummyVU        
            b ← isUnitLike qty
            if b
            then unitLikeWitness qty
            else quoteNe ne
       aux _ _ = fail "Ill-typed quote"
   
-{--
-quote :: VTm → InCtx Tm
-quote (VNe ne vty) = quoteNe ne vty
-quote (VU l) = pure $ U l
-quote (VPi name ty (Clos bod env)) = 
-    do
-     nty ← quote ty
-     var ← addVar name nty
-     vbod ← eval (VNe (NeFVar var) : env) bod
-     qbod ← quote vbod
-     closeProducts [var] qbod
-quote (VAbs name ty (Clos bod env)) = 
-    do
-     nty ← quote ty
-     var ← addVar name nty
-     vbod ← eval (VNe (NeFVar var) : env) bod
-     qbod ← quote vbod
-     closeAbs [var] qbod
-quote (VConstr name i args) = 
-    do
-      qargs ← mapM quote args
-      pure $ App (Constr name i) qargs
---}
---
---
 quoteNe :: Ne → InCtx Tm
 quoteNe (NeFVar name) = pure $ FVar name
 quoteNe (NeBVar _) = fail "Quoting a bound variable should never happen"
@@ -230,3 +208,135 @@ quoteNe (NeElim l name args ne) =
       qargs ← mapM quoteVal args
       tm ← quoteNe ne
       pure $ App (Elim l name) (qargs ++ [tm])
+
+norm :: Tm → Ty → InCtx Tm
+norm tm ty = 
+    do
+      vty ← eval [] ty
+      vtm ← eval [] tm
+      quoteVal (Val vtm vty)
+
+normTy :: Ty → InCtx Ty
+normTy ty =
+    do
+      vty ← eval [] ty
+      quoteVal (Val vty dummyVU)
+ 
+convTy :: Ty → Ty → InCtx Bool
+convTy ty ty' = 
+    do 
+      vty ← eval [] ty
+      vty' ← eval [] ty'
+      nty ← quoteVal (Val vty dummyVU)
+      nty' ← quoteVal (Val vty' dummyVU)
+      pure $ nty == nty'
+
+conv :: Tm → Tm → Ty → InCtx Bool
+conv tm tm' ty = 
+    do
+      vty ← eval [] ty
+      vtm ← eval [] tm
+      vtm' ← eval [] tm'
+      ntm ← quoteVal (Val vtm vty)
+      ntm' ← quoteVal (Val vtm' vty)
+      pure $ ntm == ntm'
+
+isUnitLike :: Ty → InCtx Bool
+isUnitLike (Pi name ty fam) =
+  do
+    name' ← addVar name ty
+    b ← norm (instantiate [FVar name'] fam) dummyU >>= isUnitLike
+    removeDecl name'
+    pure b
+isUnitLike ty =
+  do
+    let (tm, params) = asApp ty
+    case tm of
+      Ident s →
+        do
+          { bdef ← isDef s
+          ; if bdef
+            then
+              do
+                df ← getDef s
+                case defBody df of
+                  Nothing → pure False
+                  Just ty' → norm ty' dummyU >>= isUnitLike
+            else
+              do
+                ind ← getInd s
+                if indIndices ind /= [] || length (indParams ind) /= length params
+                  then pure False
+                  else
+                  case indConstructors ind of
+                    [cs] →
+                      do
+                      {
+                      ; (names, bs) ← unzip <$> aux params (csArgs cs) []
+                      ; removeDecls names
+                      ; pure $ all (\ b → b) bs
+                      }
+                    _ → pure False
+          }
+      _ → pure False
+      where
+        aux _ [] l = pure l
+        aux params ((name, arg):cargs) l =
+          do
+            let caArgs = instantiateTele (((FVar . fst) <$> l) ++ reverse params) $ argArgs arg
+            argNames ← addTelescope caArgs
+            let resArgTy = instantiate ((FVar <$> (argNames ++ (fst <$> l))) ++ reverse params) (argRes arg)
+            cty ← closeProducts argNames resArgTy
+            b ← if argRec arg then pure False else norm cty dummyU >>= isUnitLike
+            name' ← addVar name cty
+            aux params cargs $ (name', b):l
+
+unitLikeWitness :: Ty → InCtx Tm
+unitLikeWitness (Pi name ty fam) =
+  do
+    name' ← addVar name ty
+    let ty' = instantiate [FVar name'] fam
+    tm ← norm ty' dummyU >>= unitLikeWitness
+    closeAbs [name'] tm
+unitLikeWitness ty =
+  do
+    let (tm, params) = asApp ty
+    case tm of
+      Ident s →
+        do
+          { bdef ← isDef s
+          ; if bdef
+            then
+              do
+                df ← getDef s
+                case defBody df of
+                  Nothing → fail "Not a unit-like type"
+                  Just ty' → norm ty' dummyU >>= unitLikeWitness 
+            else
+              do
+                ind ← getInd s
+                if indIndices ind /= [] || length (indParams ind) /= length params
+                then fail "Not a unit-like type"                  
+                else
+                  case indConstructors ind of
+                    [cs] →
+                      do
+                      {
+                      ; tms ← aux params (csArgs cs) []
+                      ; pure $ App (Ident (csName cs)) tms
+                      }
+                    _ → fail "Not a unit-like type"
+          }
+      _ → fail "Not a unit-like type"
+      where
+        aux _ [] tms = pure tms
+        aux params ((_,arg):cargs) tms =
+          do
+            let caArgs = instantiateTele (tms ++ reverse params) $ argArgs arg
+            argNames ← addTelescope caArgs
+            let resArgTy = instantiate ((FVar <$> argNames) ++ tms ++ reverse params) (argRes arg)
+            cty ← closeProducts argNames resArgTy
+            tm ← if argRec arg then fail "Not a unit-like type" else norm cty dummyU >>= unitLikeWitness 
+            aux params cargs $ tm:tms
+
+
