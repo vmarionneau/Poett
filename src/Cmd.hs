@@ -94,6 +94,7 @@ processPrint name =
   do
     bdef ← isDef name
     bInd ← isInd name
+    bConstr ← isConstr name
     if bdef then
       do
         { df ← getDef name
@@ -106,6 +107,13 @@ processPrint name =
       else if bInd then
        do
          { ind ← getInd name
+         ; sInd ← showIndCtx ind
+         ; pure $ putStrLn sInd
+         }
+      else if bConstr then
+       do
+         { (nameInd, _) ← asConstr name
+         ; ind ← getInd nameInd
          ; sInd ← showIndCtx ind
          ; pure $ putStrLn sInd
          }

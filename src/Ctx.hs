@@ -227,23 +227,18 @@ addInd ind =
 addDef :: String → Tm → Ty → InCtx ()
 addDef name tm ty =
   do
-    bInd ← isInd name
-    bDef ← isDef name
-    bConstr ← isConstr name
+    ensureUndef name
     defs ← getDefCtx
-    if bInd || bConstr || bDef
-    then fail $ "Already defined : " ++ name
-    else logMsg (name ++ " defined.") >> (setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm)))
+    setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm))
+    logMsg (name ++ " defined.")
 
 addCst :: String → Ty → InCtx ()
 addCst name ty =
   do
-    bInd ← isInd name
-    bDef ← isDef name
+    ensureUndef name
     defs ← getDefCtx
-    if bInd || bDef
-    then fail $ "Already defined : " ++ name
-    else logMsg (name ++ " declared.") >> (setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty Nothing))
+    setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty Nothing)
+    logMsg (name ++ " declared.")
 
 freshName :: Name → InCtx Name
 freshName name =
