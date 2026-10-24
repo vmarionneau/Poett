@@ -248,6 +248,17 @@ number =
       then parserFail
       else pure $ Number $ foldl (\ i d → i * 10 + d) d0 digits
 
+typeUniverse :: Parser (Stream Char) Token
+typeUniverse =
+  do
+    void $ char 'U'
+    void $ char '_'
+    d0 ← digit
+    digits ← many digit
+    if (d0 == 0) && (digits /= [])
+      then parserFail
+      else pure $ Universe $ foldl (\ i d → i * 10 + d) d0 digits
+
 universe :: Parser (Stream Char) Token
 universe =
   do
@@ -277,7 +288,7 @@ bar :: Parser (Stream Char) Token
 bar = char '|' >> pure Bar
 
 lambda :: Parser (Stream Char) Token
-lambda = notFollowed (string "λ" <|> string "fun") alphaNum >> pure Lambda
+lambda = notFollowed (string "λ" <|> string "fun" <|> string "\\") alphaNum >> pure Lambda
 
 piTok :: Parser (Stream Char) Token
 piTok = notFollowed (string "Π" <|> string "Pi") alphaNum >> pure PiTok
@@ -397,6 +408,7 @@ token = oneOf
         , lbracket
         , rbracket
         , universe
+        , typeUniverse
         , prop
         , number
         , comma
