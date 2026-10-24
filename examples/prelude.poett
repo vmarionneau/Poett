@@ -10,8 +10,8 @@ ind top : Prop
 
 ind bot : Prop
 
-def not : Prop → Prop
-    := λ (A : Prop), A → bot
+def not (A : Prop) : Prop 
+    := A → bot
 
 ind sum (A : U₀) (B : U₀) : U₀
 | inl : A → sum A B
@@ -30,14 +30,11 @@ ind bool : U₀
 | false : bool
 | true : bool
 
-def neq : Π(A : U₀) A → A → Prop
-    := λ (A : U₀),
-       λ (x : A),
-       λ (y : A),
-       not (eq A x y)
+def neq (A : U₀) (x : A) (y : A) : Prop
+    := not (eq A x y)
 
 def true-ne-false-fam : bool → Prop
     := elim U₀ bool (λ (_ : bool), Prop) bot top
 
 proof true-ne-false : neq bool true false
-      := elim Prop eq bool true (λ (b : bool), λ (_ : eq bool true b), true-ne-false-fam b) I false
+      := elim Prop eq bool true (λ (b : bool) (_ : eq bool true b), true-ne-false-fam b) I false

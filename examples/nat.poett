@@ -6,12 +6,12 @@ ind nat : U₀
 | succ : nat → nat
 
 def add : nat → nat → nat
-    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (n : nat), n) (λ (_ : nat), λ (addRec : nat → nat), λ (n : nat),  succ (addRec n))
+    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (n : nat), n) (λ (_ : nat) (addRec : nat → nat) (n : nat),  succ (addRec n))
 
 def mul : nat → nat → nat
-    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (_ : nat), zero) (λ (_ : nat), λ (mulRec : nat → nat), λ (n : nat), add n (mulRec n))
+    := elim U₀ nat (λ (_ : nat), nat → nat) (λ (_ : nat), zero) (λ (_ : nat) (mulRec : nat → nat) (n : nat), add n (mulRec n))
 
-proof add-zero-r : Π(n : nat) eq nat (add n zero) n
+proof add-zero-r : Π (n : nat) eq nat (add n zero) n
       := elim Prop nat (λ (n : nat), eq nat (add n zero) n)
               (refl nat zero)
               (λ (n : nat),
@@ -19,21 +19,17 @@ proof add-zero-r : Π(n : nat) eq nat (add n zero) n
                  ap nat nat succ (add n zero) n ih
               )
 
-proof add-succ-r : Π(n : nat) Π(m : nat) eq nat (add n (succ m)) (succ (add n m))
+proof add-succ-r : Π (n : nat) (m : nat) eq nat (add n (succ m)) (succ (add n m))
       := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n (succ m)) (succ (add n m)))
               (λ (m : nat), refl nat (succ m))
-              (λ (n : nat),
-               λ (ih : Π(m : nat) eq nat (add n (succ m)) (succ (add n m))),
-               λ (m : nat),
+              (λ (n : nat) (ih : Π(m : nat) eq nat (add n (succ m)) (succ (add n m))) (m : nat),
                  ap nat nat succ (add n (succ m)) (succ (add n m)) (ih m)
               )
 
-proof add-comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
+proof add-comm : Π (n : nat) (m : nat) eq nat (add n m) (add m n)
       := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (add n m) (add m n))
                    (λ (m : nat), sym nat (add m zero) m (add-zero-r m))
-                   (λ (n : nat),
-                    λ (ih : Π(m : nat) eq nat (add n m) (add m n)),
-                    λ (m : nat),
+                   (λ (n : nat) (ih : Π(m : nat) eq nat (add n m) (add m n)) (m : nat),
                       trans nat (succ (add n m)) (succ (add m n)) (add m (succ n))
                             (ap nat nat succ (add n m) (add m n) (ih m))
                             (sym nat (add m (succ n)) (succ (add m n)) (add-succ-r m n))
@@ -41,36 +37,31 @@ proof add-comm : Π(n : nat) Π(m : nat) eq nat (add n m) (add m n)
 
 proof add-assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)
       := elim Prop nat (λ (n : nat), Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k))
-         (λ (m : nat), λ (k : nat), refl nat (add m k))
-         (λ (n : nat),
-          λ (ih : Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k)),
-          λ (m : nat),
-          λ (k : nat),
-          ap nat nat succ (add n (add m k)) (add (add n m) k) (ih m k)
+         (λ (m : nat) (k : nat), refl nat (add m k))
+         (λ (n : nat) (ih : Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (add (add n m) k))
+            (m : nat) (k : nat),
+            ap nat nat succ (add n (add m k)) (add (add n m) k) (ih m k)
          )
 
 def bot-above-succ : nat → Prop
-    := elim U₀ nat (λ (_ : nat), Prop) top (λ (_ : nat), λ (_ : Prop), bot)
+    := elim U₀ nat (λ (_ : nat), Prop) top (λ (_ : nat) (_ : Prop), bot)
     
-proof zero-neq-succ : Π(n : nat) not (eq nat zero (succ n))
-      := λ (n : nat),
-         λ (p : eq nat zero (succ n)),
+proof zero-neq-succ (n : nat) : not (eq nat zero (succ n))
+      := λ (p : eq nat zero (succ n)),
            elim Prop eq nat zero
-                (λ (n₀ : nat), λ (_ : eq nat zero n₀), bot-above-succ n₀)
+                (λ (n₀ : nat) (_ : eq nat zero n₀), bot-above-succ n₀)
               I (succ n) p
 
-proof mul-zero-r : Π(n : nat) eq nat (mul n zero) zero
+proof mul-zero-r : Π (n : nat) eq nat (mul n zero) zero
       := elim Prop nat (λ (n : nat), eq nat (mul n zero) zero)
               (refl nat zero)
               (λ (n : nat),
                λ (ih : eq nat (mul n zero) zero), ih)
 
-proof mul-succ-r : Π(n : nat) Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m))
+proof mul-succ-r : Π (n : nat) (m : nat) eq nat (mul n (succ m)) (add n (mul n m))
       := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m)))
               (λ (_ : nat), refl nat zero)
-              (λ (n : nat),
-               λ (ih : Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m))),
-               λ (m : nat),
+              (λ (n : nat) (ih : Π(m : nat) eq nat (mul n (succ m)) (add n (mul n m))) (m : nat),
                  let (k₀ : nat) := add m n in
                  let (k₁ : nat) := add n m in
                  let (k₂ : nat) := mul n m in
@@ -102,12 +93,10 @@ proof mul-succ-r : Π(n : nat) Π(m : nat) eq nat (mul n (succ m)) (add n (mul n
                  -- S (n + S n * m) ≡β S n + S n * m
               )
              
-proof mul-comm : Π(n : nat) Π(m : nat) eq nat (mul n m) (mul m n)
+proof mul-comm : Π (n : nat) (m : nat) eq nat (mul n m) (mul m n)
       := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (mul n m) (mul m n))
               (λ (m : nat), sym nat (mul m zero) zero (mul-zero-r m))
-              (λ (n : nat),
-               λ (ih : Π(m : nat) eq nat (mul n m) (mul m n)),
-               λ (m : nat),
+              (λ (n : nat) (ih : Π(m : nat) eq nat (mul n m) (mul m n)) (m : nat),
                  trans nat (mul (succ n) m)
                            (add m (mul m n))
                            (mul m (succ n))
@@ -115,13 +104,10 @@ proof mul-comm : Π(n : nat) Π(m : nat) eq nat (mul n m) (mul m n)
                            (sym nat (mul m (succ n)) (add m (mul m n)) (mul-succ-r m n))
               )
 
-proof mul-add-distr-l : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul n (add m k)) (add (mul n m) (mul n k))
+proof mul-add-distr-l : Π(n : nat) (m : nat) (k : nat) eq nat (mul n (add m k)) (add (mul n m) (mul n k))
       := elim Prop nat (λ (n : nat), Π(m : nat) Π(k : nat) eq nat (mul n (add m k)) (add (mul n m) (mul n k)))
-              (λ (_ : nat), λ (_ : nat), refl nat zero)
-              (λ (n : nat),
-               λ (ih : Π(m : nat) Π(k : nat) eq nat (mul n (add m k)) (add (mul n m) (mul n k))),
-               λ (m : nat),
-               λ (k : nat),
+              (λ (_ : nat) (_ : nat), refl nat zero)
+              (λ (n : nat) (ih : Π(m : nat) Π(k : nat) eq nat (mul n (add m k)) (add (mul n m) (mul n k))) (m : nat) (k : nat),
                trans nat (add (add m k) (mul n (add m k)))
                          (add (add m k) (add (mul n m) (mul n k)))
                          (add (add m (mul n m)) (add k (mul n k)))
@@ -168,11 +154,8 @@ proof mul-add-distr-l : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul n (add m
                          )
                )
 
-proof mul-add-distr-r : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul (add n m) k) (add (mul n k) (mul m k))
-          := λ (n : nat),
-             λ (m : nat),
-             λ (k : nat),
-             trans nat (mul (add n m) k)
+proof mul-add-distr-r (n : nat) (m : nat) (k : nat) : eq nat (mul (add n m) k) (add (mul n k) (mul m k))
+          := trans nat (mul (add n m) k)
                        (mul k (add n m))
                        (add (mul n k) (mul m k))
                        (mul-comm (add n m) k)
@@ -192,13 +175,10 @@ proof mul-add-distr-r : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul (add n m
                                   )
                        )
                     
-proof mul-assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k)
-       := elim Prop nat (λ (n : nat), Π(m : nat) Π(k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k))
-           (λ (_ : nat), λ (_ : nat), refl nat zero)
-           (λ (n : nat),
-            λ (ih : Π(m : nat) Π(k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k)),
-            λ (m : nat),
-            λ (k : nat),
+proof mul-assoc : Π (n : nat) (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k)
+       := elim Prop nat (λ (n : nat), Π (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k))
+           (λ (_ : nat) (_ : nat), refl nat zero)
+           (λ (n : nat) (ih : Π (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k)) (m : nat) (k : nat),
              trans nat (add (mul m k) (mul n (mul m k)))
                        (add (mul m k) (mul (mul n m) k))
                        (mul (add m (mul n m)) k)

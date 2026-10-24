@@ -609,7 +609,7 @@ parsePi =
     vars ← (fmap locData) <$> many varDecl
     fam ← locData <$> expr
     deanchor
-    let ty' = PPi name ty $ foldr (\(name', ty'') tyAcc → PAbs name' ty'' tyAcc) fam vars
+    let ty' = PPi name ty $ foldr (\(name', ty'') tyAcc → PPi name' ty'' tyAcc) fam vars
     pure $ ty' @< beg
 
 letExpr :: Parser (Scoped (Loc Token)) (Loc PTm)

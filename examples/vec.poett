@@ -4,28 +4,10 @@ ind vec (A : U₀) : nat → U₀
 | vNil : vec A zero
 | vCons : Π (n : nat) A → vec A n → vec A (succ n)
 
-def vec-zero-uniq :
-    Π (A : U₀)
-    Π (P : vec A zero → U₀)
-      P (vNil A) →
-      Π (v : vec A zero) P v
-     := λ (A : U₀),
-        λ (P : vec A zero → U₀),
-        λ (H : P (vNil A)),
-        let T : Π (n : nat) vec A n → U₀
-         := elim U₁ nat (λ (n₀ : nat), vec A n₀ → U₀)
-           P
-           (λ (n₀ : nat),
-            λ (_ : vec A n₀ → U₀),
-            λ (_ : vec A (succ n₀)),
-            unit
-           )
+def vec-zero-uniq (A : U₀) (P : vec A zero → U₀) (H : P (vNil A)) : Π (v : vec A zero) P v
+     := let T : Π (n : nat) vec A n → U₀
+          := elim U₁ nat (λ (n₀ : nat), vec A n₀ → U₀) P (λ (n₀ : nat) (_ : vec A n₀ → U₀) (_ : vec A (succ n₀)), unit)
         in elim U₀ vec A T H
-           (λ (n : nat),
-            λ (_ : A),
-            λ (v : vec A n),
-            λ (_ : T n v),
-            tt
-           )
+           (λ (n : nat) (_ : A) (v : vec A n) (_ : T n v), tt)
            zero
 
