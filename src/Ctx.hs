@@ -42,27 +42,35 @@ data Ctx = Ctx {global :: GlobalCtx, local :: LocalCtx}
 emptyCtx :: Ctx
 emptyCtx = Ctx emptyGlobalCtx emptyLocalCtx
 
-newtype InCtx a = InCtx {runInCtx :: Ctx → Either String (Ctx, a)}
+newtype InCtx a = InCtx {runInCtx :: Ctx → (Either String (Ctx, a), [String])}
+
+mapFst :: (a -> b) → (a, c) → (b, c)
+mapFst f (a , b) = (f a , b)
 
 instance Functor InCtx where
-  fmap f mx = InCtx (fmap (\ (ctx, a) → (ctx, f a)) . runInCtx mx)
+  fmap f mx = InCtx (mapFst (fmap (\ (ctx, a) → (ctx, f a))) . runInCtx mx)
 
 instance Applicative InCtx where
-  pure x = InCtx (\ ctx → Right (ctx, x))
+  pure x = InCtx (\ ctx → (Right (ctx, x), []))
                  
-  mf <*> mx = InCtx (\ ctx → case runInCtx mf ctx of
-                               Left err → Left err
-                               Right (ctx', f) → (\ (ctx'', x) → (ctx'', f x)) <$> (runInCtx mx ctx')
+  mf <*> mx = InCtx (\ ctx → let (fm, logs) = runInCtx mf ctx in
+                             case fm of 
+                               Left err → (Left err, logs)
+                               Right (ctx', f) → let (xm, logs') = runInCtx mx ctx' in
+                                                  ((\ (ctx'', x) → (ctx'', f x)) <$> xm, logs ++ logs')
                     )
               
 instance Monad InCtx where
-  mx >>= f = InCtx (\ ctx → case runInCtx mx ctx of
-                               Left err → Left err
-                               Right (ctx', x) → runInCtx (f x) ctx'
+  mx >>= f = InCtx (\ ctx → 
+                        let (xm, logs) = runInCtx mx ctx in
+                        case xm of
+                            Left err → (Left err, logs)
+                            Right (ctx', x) → let (fxm, logs') = runInCtx (f x) ctx' in
+                                              (fxm, logs ++ logs')
                    )
 
 instance MonadFail InCtx where
-  fail s = InCtx (const $ Left s)
+  fail s = InCtx (const $ (Left s, []))
 
 firstJust :: (a → Maybe b) → [a] → Maybe b
 firstJust _ [] = Nothing
@@ -76,20 +84,24 @@ maybeEither :: a → Maybe b → Either a b
 maybeEither _ (Just x) = Right x
 maybeEither y _ = Left y
 
+logMsg :: String → InCtx ()
+logMsg s = InCtx (\ ctx → (Right (ctx, ()), [s]))
+
 inCtxOfEither :: Either String a → InCtx a
-inCtxOfEither m = InCtx (\ ctx → (\ x → (ctx, x)) <$> m)
+inCtxOfEither m = InCtx (\ ctx → ((\ x → (ctx, x)) <$> m, []))
 
 inCtxOfMaybe :: String → Maybe a → InCtx a
 inCtxOfMaybe s m = inCtxOfEither $ maybeEither s m
 
 inCtxTry :: InCtx a → InCtx (Either String a)
-inCtxTry m = InCtx (\ ctx → case runInCtx m ctx of
-                              Left err → Right (ctx, Left err)
-                              Right (ctx', x) → Right (ctx', Right x)
+inCtxTry m = InCtx (\ ctx → let (xm, logs) = runInCtx m ctx in
+                            case xm of 
+                              Left err → (Right (ctx, Left err), logs)
+                              Right (ctx', x) → (Right (ctx', Right x), logs)
                    )
 
 getCtx :: InCtx Ctx
-getCtx = InCtx (\ ctx → Right (ctx, ctx))
+getCtx = InCtx (\ ctx → (Right (ctx, ctx), []))
 
 getLocalCtx :: InCtx LocalCtx
 getLocalCtx = local <$> getCtx
@@ -104,7 +116,7 @@ getIndCtx :: InCtx IndCtx
 getIndCtx = indCtx <$> getGlobalCtx
 
 setCtx :: Ctx → InCtx ()
-setCtx ctx = InCtx (const $ Right (ctx, ()))
+setCtx ctx = InCtx (const $ (Right (ctx, ()), []))
 
 setLocalCtx :: LocalCtx → InCtx ()
 setLocalCtx lctx =
@@ -221,7 +233,7 @@ addDef name tm ty =
     defs ← getDefCtx
     if bInd || bConstr || bDef
     then fail $ "Already defined : " ++ name
-    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm))
+    else logMsg (name ++ " defined.") >> (setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty (Just tm)))
 
 addCst :: String → Ty → InCtx ()
 addCst name ty =
@@ -231,7 +243,7 @@ addCst name ty =
     defs ← getDefCtx
     if bInd || bDef
     then fail $ "Already defined : " ++ name
-    else setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty Nothing)
+    else logMsg (name ++ " declared.") >> (setDefCtx $ defs `Map.union` (Map.singleton name $ Def name ty Nothing))
 
 freshName :: Name → InCtx Name
 freshName name =
@@ -331,6 +343,9 @@ unfoldLocal name tm =
     case entryDef entry of
       Nothing → fail $ "Not a let variable " ++ show name
       Just def → removeDecl name >> (pure $ substitute [(name, def)] tm)
+
+ignoreLogs :: InCtx a → InCtx a
+ignoreLogs m = InCtx (\ ctx → let (x, _) = runInCtx m ctx in (x, []))
 
 isolate :: InCtx a → InCtx a
 isolate m =

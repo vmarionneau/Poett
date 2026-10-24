@@ -6,6 +6,7 @@ module Cmd (module Cmd) where
 
 import Syntax
 import Term
+import Ind
 import Ctx
 import Parser
 import WHNF
@@ -44,7 +45,8 @@ processProof pf =
         ensureType ty
         tm ← toTerm (defCmdBody pf)
         check tm ty
-        addCst (defCmdName pf) ty
+        ignoreLogs $ addCst (defCmdName pf) ty
+        logMsg (defCmdName pf ++ " proven.")
         pure $ pure ()
     Nothing →
       do
@@ -66,6 +68,7 @@ processInd pind =
   do
     ind ← toInd pind
     addInd ind
+    logMsg ("Inductive type " ++ indName ind ++ " defined.")
     pure $ pure ()
 
 processCheck :: PTm → InCtx (IO ())
@@ -155,7 +158,8 @@ processNbE ptm =
 unpackForIO :: InCtx (IO ()) → FilePath → Ctx → IO (Either String Ctx)
 unpackForIO mx _ ctx =
   do
-    let x = runInCtx mx ctx
+    let (x, logs) = runInCtx mx ctx
+    void $ mapM putStrLn logs
     case x of
       Left err → pure $ Left err
       Right (ctx', my) → my >> (pure $ Right ctx')
@@ -189,7 +193,9 @@ processInput input path ctx =
                   h:_ → fail $ "Parser error at : " ++ show (pos h)
                   [] → pure $ (flip processCommand path)  <$> locData <$> cmds
             }
-    case runInCtx inctx ctx of
+    let (x, logs) = runInCtx inctx ctx
+    void $ mapM putStrLn logs
+    case x of
       Left msg → pure $ Left msg
       Right (ctx', actions) →
         foldM (\ mctx action →

@@ -242,7 +242,7 @@ toInd pind =
     ar ← abstractArity pNames arity
     cstTy ← foldArity pNames arity
     let lvl = arSort ar
-    addCst name cstTy
+    ignoreLogs $ addCst name cstTy
     csts ← mapM (toConstructor name pNames pStrings lvl) $ preIndConstructors pind
     removeDef name
     ty ← closeProducts pNames (Ident "dummy")
