@@ -593,10 +593,12 @@ parseAbs =
     beg ← parseTok Lambda
     anchor $ pos beg
     (name, ty) ← locData <$> varDecl
+    vars ← (fmap locData) <$> many varDecl
     void $ parseTok Comma
     body ← locData <$> expr
     deanchor
-    pure $ (PAbs name ty body) @< beg
+    let tm = PAbs name ty $ foldr (\(name', ty') tmAcc → PAbs name' ty' tmAcc) body vars
+    pure $ tm @< beg
 
 parsePi :: Parser (Scoped (Loc Token)) (Loc PTm)
 parsePi =
@@ -604,9 +606,11 @@ parsePi =
     beg ← parseTok PiTok
     anchor $ pos beg
     (name, ty) ← locData <$> varDecl
+    vars ← (fmap locData) <$> many varDecl
     fam ← locData <$> expr
     deanchor
-    pure $ (PPi name ty fam) @< beg
+    let ty' = PPi name ty $ foldr (\(name', ty'') tyAcc → PAbs name' ty'' tyAcc) fam vars
+    pure $ ty' @< beg
 
 letExpr :: Parser (Scoped (Loc Token)) (Loc PTm)
 letExpr =
@@ -629,13 +633,16 @@ definition =
     beg ← parseTok DefTok
     anchor $ pos beg
     name ← locData <$> parseIdent
+    vars ← (fmap locData) <$> many varDecl
     ty ← (fmap locData) <$> (parseMaybe $ parseTok Colon >> expr)
     defeq ← parseTok DefEq
     anchor $ pos defeq
     body ← locData <$> expr
     deanchor
     deanchor
-    pure $ (Definition $ DefCmd name ty body) @< beg
+    let ty' = (\tyV → foldr (\(varName, varTy) tyAcc → PPi varName varTy tyAcc) tyV vars) <$> ty
+    let body' = foldr (\(varName, varTy) bodyAcc → PAbs varName varTy bodyAcc) body vars
+    pure $ (Definition $ DefCmd name ty' body') @< beg
 
 proof :: Parser (Scoped (Loc Token)) (Loc Command)
 proof =
@@ -643,13 +650,16 @@ proof =
     beg ← parseTok ProofTok
     anchor $ pos beg
     name ← locData <$> parseIdent
+    vars ← (fmap locData) <$> many varDecl
     ty ← (fmap locData) <$> (parseMaybe $ parseTok Colon >> expr)
     defeq ← parseTok DefEq
     anchor $ pos defeq
     body ← locData <$> expr
     deanchor
     deanchor
-    pure $ (Proof $ DefCmd name ty body) @< beg
+    let ty' = (\tyV -> foldr (\(varName, varTy) tyAcc → PPi varName varTy tyAcc) tyV vars) <$> ty
+    let body' = foldr (\(varName, varTy) bodyAcc → PAbs varName varTy bodyAcc) body vars
+    pure $ (Proof $ DefCmd name ty' body') @< beg
 
 constructor :: Parser (Scoped (Loc Token)) (Loc (String, PTy))
 constructor =
@@ -682,9 +692,11 @@ axiom =
     beg ← parseTok AxiomTok
     anchor $ pos beg
     name ← locData <$> parseIdent
+    vars ← (fmap locData) <$> many varDecl
     ty ← locData <$> (parseTok Colon >> expr)
     deanchor
-    pure $ (Axiom name ty) @< beg
+    let ty' = foldr (\(varName, varTy) tyAcc → PPi varName varTy tyAcc) ty vars
+    pure $ (Axiom name ty') @< beg
 
 checkNormCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 checkNormCmd =

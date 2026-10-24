@@ -243,12 +243,13 @@ showIndCtx ind =
   do
     let params = indParams ind
     paramNames ← addTelescope params
-    showPs ← mapM (\name →
-                     do
-                       ty ← entryType <$> getLocal name
-                       sTy ← showTermCtx ty
-                       pure $ "(" ++ show name ++ " : " ++ sTy ++ ") "
-                  ) paramNames
+    showPs ← reverse <$> 
+                 mapM (\name →
+                         do
+                          ty ← entryType <$> getLocal name
+                          sTy ← showTermCtx ty
+                          pure $ "(" ++ show name ++ " : " ++ sTy ++ ") "
+                      ) paramNames
     showCs ← mapM (\i →
                       do
                         cst ← getConstr ind i
