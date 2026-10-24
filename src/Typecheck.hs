@@ -156,6 +156,12 @@ ensureType ty =
     u ← infer ty
     void $ normTy u >>= asU
 
+inferNorm :: Tm → InCtx Ty
+inferNorm tm = 
+    do
+      ty ← infer tm
+      normTy ty
+      
 showTermCtx :: Tm → InCtx String
 showTermCtx (FVar name) = pure $ show name
 showTermCtx (BVar i) = pure $ show i

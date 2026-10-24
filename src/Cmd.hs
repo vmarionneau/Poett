@@ -77,6 +77,15 @@ processCheck ptm =
     sTy ← showTermCtx ty
     pure $ putStrLn (sTm ++ " : " ++ sTy)
 
+processCheckNorm :: PTm → InCtx (IO ())
+processCheckNorm ptm =
+  do
+    tm ← toTerm ptm
+    sTm ← showTermCtx tm
+    ty ← inferNorm tm
+    sTy ← showTermCtx ty
+    pure $ putStrLn (sTm ++ " : " ++ sTy)
+
 processPrint :: String → InCtx (IO ())
 processPrint name =
   do
@@ -157,6 +166,7 @@ processCommand (Proof pf) = unpackForIO $ processProof pf
 processCommand (Inductive pind) = unpackForIO $ processInd pind
 processCommand (Axiom name pty) = unpackForIO $ processAx name pty
 processCommand (Check ptm) = unpackForIO $ processCheck ptm
+processCommand (CheckNorm ptm) = unpackForIO $ processCheckNorm ptm
 processCommand (Print name) = unpackForIO $ processPrint name
 processCommand (Import path) = processImport (path ++ ".poett")
 processCommand (Fail cmd) = processFail cmd

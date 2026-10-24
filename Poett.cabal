@@ -30,6 +30,7 @@ library
       Elab
       Elim
       Ind
+      IndUtils
       Name
       NbE
       Parser

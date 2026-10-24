@@ -35,6 +35,7 @@ data Command
   | Inductive PreInd
   | Axiom String PTy
   | Check PTm
+  | CheckNorm PTm
   | Print String
   | Import String
   | Fail Command

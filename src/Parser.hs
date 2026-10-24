@@ -78,6 +78,7 @@ data Token
   | IndTok
   | AxiomTok
   | CheckTok
+  | CheckNormTok
   | PrintTok
   | FailTok
   | ImportTok String
@@ -308,6 +309,9 @@ indTok = notFollowed (string "ind" <|> string "inductive") alphaNum >> pure IndT
 axTok :: Parser (Stream Char) Token
 axTok = notFollowed (string "axiom") alphaNum >> pure AxiomTok
 
+checkNormTok :: Parser (Stream Char) Token
+checkNormTok = notFollowed (string "#checkNorm") alphaNum >> pure CheckNormTok
+
 checkTok :: Parser (Stream Char) Token
 checkTok = notFollowed (string "#check") alphaNum >> pure CheckTok
 
@@ -379,6 +383,7 @@ token = oneOf
         , proofTok
         , indTok
         , axTok
+        , checkNormTok
         , checkTok
         , printTok
         , failTok
@@ -669,6 +674,15 @@ axiom =
     deanchor
     pure $ (Axiom name ty) @< beg
 
+checkNormCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+checkNormCmd =
+  do
+    beg ← parseTok CheckNormTok
+    anchor $ pos beg
+    tm ← locData <$> expr
+    deanchor
+    pure $ (CheckNorm tm) @< beg
+
 checkCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 checkCmd =
   do
@@ -746,6 +760,7 @@ command = oneOf
           , proof
           , inductive
           , axiom
+          , checkNormCmd
           , checkCmd
           , printCmd
           , importCmd
