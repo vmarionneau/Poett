@@ -64,3 +64,11 @@ def oof : list unit
 #nbe bar₀
 #nf oof
 #nbe oof 
+
+def wnat-fam := elim U₁ bool (λ (_ : bool), U₀) empty unit
+
+def wnat : U₀ := W bool wnat-fam
+
+def wzero : wnat := sup bool wnat-fam false (elim U₀ empty (λ (_ : empty), wnat))
+
+def wsucc (n : wnat) : wnat := sup bool wnat-fam true (λ (_ : unit), n)
