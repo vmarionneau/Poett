@@ -12,7 +12,13 @@ def trans (A : U₀) (x : A) (y : A) (z : A) : eq A x y → eq A y z → eq A x 
 def ap (A : U₀) (B : U₀) (f : A → B) (x : A) : Π (y : A) eq A x y → eq B (f x) (f y)
     := elim Prop eq A x (λ (y : A) (_ : eq A x y), eq B (f x) (f y))
             (refl B (f x))
-              
+ 
+def transp (A : U₀) (B : A → U₀) (x : A) (y : A) (p : eq A x y) (H : B x) : B y
+    := elim U₀ eq A x (λ (y : A) (_ : eq A x y), B y) H y p
+
+def transpconst (A : U₀) (B : U₀) (x : A) (y : A) (p : eq A x y) (z : B) : eq B (transp A (λ (_ : A), B) x y p z) z
+    := elim Prop eq A x (λ (y : A) (p : eq A x y), eq B (transp A (λ (_ : A), B) x y p z) z) (refl B z) y p
+
 -- Leibniz equality
 def lbz (A : U₀) (x : A) (y : A) : Prop
     := Π (P : A → Prop) P x → P y

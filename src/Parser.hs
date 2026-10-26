@@ -77,6 +77,7 @@ data Token
   | ProofTok
   | IndTok
   | AxiomTok
+  | SealTok
   | CheckTok
   | CheckNormTok
   | PrintTok
@@ -320,6 +321,9 @@ indTok = notFollowed (string "ind" <|> string "inductive") alphaNum >> pure IndT
 axTok :: Parser (Stream Char) Token
 axTok = notFollowed (string "axiom") alphaNum >> pure AxiomTok
 
+sealTok :: Parser (Stream Char) Token
+sealTok = notFollowed (string "#seal") alphaNum >> pure SealTok
+
 checkNormTok :: Parser (Stream Char) Token
 checkNormTok = notFollowed (string "#checkNorm") alphaNum >> pure CheckNormTok
 
@@ -394,6 +398,7 @@ token = oneOf
         , proofTok
         , indTok
         , axTok
+        , sealTok
         , checkNormTok
         , checkTok
         , printTok
@@ -698,6 +703,15 @@ axiom =
     let ty' = foldr (\(varName, varTy) tyAcc → PPi varName varTy tyAcc) ty vars
     pure $ (Axiom name ty') @< beg
 
+sealCmd :: Parser (Scoped (Loc Token)) (Loc Command)
+sealCmd =
+  do
+    beg ← parseTok SealTok
+    anchor $ pos beg
+    name ← locData <$> parseIdent
+    deanchor
+    pure $ (Seal name) @< beg
+
 checkNormCmd :: Parser (Scoped (Loc Token)) (Loc Command)
 checkNormCmd =
   do
@@ -784,6 +798,7 @@ command = oneOf
           , proof
           , inductive
           , axiom
+          , sealCmd
           , checkNormCmd
           , checkCmd
           , printCmd

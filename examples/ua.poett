@@ -1,0 +1,43 @@
+#import prelude
+
+ind eq₁ (A : U₁) (x : A) : A → Prop
+| refl₁ : eq₁ A x x
+
+def sym₁ (A : U₁) (x : A) : Π (y : A) eq₁ A x y → eq₁ A y x
+    := elim Prop eq₁ A x (λ (y : A) (_ : eq₁ A x y), eq₁ A y x) (refl₁ A x)
+
+def trans₁ (A : U₁) (x : A) (y : A) (z : A) : eq₁ A x y → eq₁ A y z → eq₁ A x z
+    := elim Prop eq₁ A x (λ (y₀ : A) (_ : eq₁ A x y₀), eq₁ A y₀ z → eq₁ A x z)
+            (λ (p : eq₁ A x z), p) y
+
+ind is-equiv (A : U₀) (B : U₀) (f : A → B) : U₀
+| hasInv : Π (g : B → A) (h : B → A) (Π (x : A) eq A (g (f x)) x) → (Π (y : B) eq B (f (g y)) y) → is-equiv A B f
+
+ind equiv (A : U₀) (B : U₀) : U₀
+| hasEquiv : Π (f : A → B) is-equiv A B f → equiv A B
+
+ind is-equiv₁ (A : U₁) (B : U₁) (f : A → B) : U₁
+| hasInv₁ : Π (g : B → A) (h : B → A) (Π (x : A) eq₁ A (g (f x)) x) → (Π (y : B) eq₁ B (f (g y)) y) → is-equiv₁ A B f
+
+ind equiv₁ (A : U₁) (B : U₁) : U₁
+| hasEquiv₁ : Π (f : A → B) is-equiv₁ A B f → equiv₁ A B
+
+def transp₁₀ (A : U₁) (B : A → U₀) (x : A) (y : A) (p : eq₁ A x y) (H : B x) : B y
+    := elim U₀ eq₁ A x (λ (y : A) (_ : eq₁ A x y), B y) H y p
+
+def subst (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : A) : B 
+    := transp₁₀ U₀ (λ (C : U₀), C) A B p x
+
+def subst-comp (A : U₀) (B : U₀) (C : U₀) (p : eq₁ U₀ A B) (q : eq₁ U₀ B C) (x : A) : eq C (subst B C q (subst A B p x)) (subst A C (trans₁ U₀ A B C p q) x)
+    := elim Prop eq₁ U₀ A (λ (B : U₀) (p : eq₁ U₀ A B), Π (C : U₀) (q : eq₁ U₀ B C) (x : A) eq C (subst B C q (subst A B p x)) (subst A C (trans₁ U₀ A B C p q) x))
+        (λ (C : U₀) (q : eq₁ U₀ A C) (x : A), refl C (subst A C q x)) B p C q x
+
+def subst-sym₁ (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : A) : eq A (subst B A (sym₁ U₀ A B p) (subst A B p x)) x
+    := elim Prop eq₁ U₀ A (λ (B : U₀) (p : eq₁ U₀ A B), Π (x : A) eq A (subst B A (sym₁ U₀ A B p) (subst A B p x)) x) (λ (x : A), refl A x) B p x
+
+def sym₁-subst (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : B) : eq B (subst A B p (subst B A (sym₁ U₀ A B p) x)) x
+    := elim Prop eq₁ U₀ A (λ (B : U₀) (p : eq₁ U₀ A B), Π (x : B) eq B (subst A B p (subst B A (sym₁ U₀ A B p) x)) x) (λ (x : A), refl A x) B p x
+
+def eq-to-equiv₁ (A : U₀) (B : U₀) (p : eq₁ U₀ A B) : is-equiv A B (subst A B p) 
+    := hasInv A B (subst A B p) (subst B A (sym₁ U₀ A B p)) (subst B A (sym₁ U₀ A B p)) (subst-sym₁ A B p) (sym₁-subst A B p)
+

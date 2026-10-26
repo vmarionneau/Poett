@@ -71,6 +71,10 @@ processInd pind =
     logMsg ("Inductive type " ++ indName ind ++ " defined.")
     pure $ pure ()
 
+
+processSeal :: String → InCtx (IO ())
+processSeal name = sealInd name >> pure (pure ())
+
 processCheck :: PTm → InCtx (IO ())
 processCheck ptm =
   do
@@ -177,6 +181,7 @@ processCommand (Definition df) = unpackForIO $ processDef df
 processCommand (Proof pf) = unpackForIO $ processProof pf
 processCommand (Inductive pind) = unpackForIO $ processInd pind
 processCommand (Axiom name pty) = unpackForIO $ processAx name pty
+processCommand (Seal name) = unpackForIO $ processSeal name
 processCommand (Check ptm) = unpackForIO $ processCheck ptm
 processCommand (CheckNorm ptm) = unpackForIO $ processCheckNorm ptm
 processCommand (Print name) = unpackForIO $ processPrint name
@@ -192,7 +197,7 @@ processInput input path ctx =
   do
     let inctx =
           do
-            { (toks, rest) ← inCtxOfMaybe "Lexing failed" $ runParser lexer $ Stream input 0 0
+            { (toks, rest) ← inCtxOfMaybe "Lexing failed" $ runParser lexer $ Stream input 1 0
             ; (cmds, rest') ← inCtxOfMaybe "Parsing failed" $ runParser script $ Scoped toks []
             ; if (streamData rest) /= []
               then fail $ "Lexer error at : " ++ show (streamRow rest, streamCol rest) ++ " : " ++ show (streamData rest)

@@ -34,6 +34,7 @@ data Command
   | Proof DefCmd
   | Inductive PreInd
   | Axiom String PTy
+  | Seal String
   | Check PTm
   | CheckNorm PTm
   | Print String

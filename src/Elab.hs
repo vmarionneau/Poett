@@ -88,10 +88,12 @@ boundToTerm (PCast tm ty) =
     ty' ← boundToTerm ty
     pure $ Cast tm' ty'
 boundToTerm (PBVar i) = pure $ BVar i
-boundToTerm (PElim lvl ind) =
+boundToTerm (PElim lvl name) =
   do
-    void $ getInd ind
-    pure $ Elim lvl ind
+    ind ← getInd name
+    if isIndSealed  ind 
+    then fail $ "Can't eliminate on sealed inductive type " ++ name
+    else pure $ Elim lvl name
 
 toTermFrom :: [String] → PTm → InCtx Tm
 toTermFrom vars tm =
@@ -247,4 +249,4 @@ toInd pind =
     removeDef name
     ty ← closeProducts pNames (Ident "dummy")
     let (params', _) = unravelPi (-1) ty
-    pure $ Ind name params' ar csts
+    pure $ Ind name params' ar csts Unsealed

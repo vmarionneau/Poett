@@ -25,11 +25,15 @@ data Constructor ty = Constructor
   }
   deriving (Eq, Show)
 
+data Seal = Unsealed | Sealed
+    deriving (Eq, Show)
+
 data Ind ty = Ind
   { indName :: String,
     indParams :: [(Name, ty)],
     indArity :: Arity ty,
-    indConstructors :: [Constructor ty]
+    indConstructors :: [Constructor ty],
+    indSealed :: Seal
   }
   deriving (Eq, Show)
 
@@ -60,3 +64,6 @@ elimArgLength ind = indParamLength ind + 1 + length (indConstructors ind) + indI
 csFullArgsLength :: Ind ty → Int → Int
 csFullArgsLength ind i = indArgLength ind + csArgsLength (indConstructors ind !! i)
 
+isIndSealed :: Ind ty → Bool
+isIndSealed (Ind {indSealed = Sealed}) = True
+isIndSealed (Ind {indSealed = Unsealed}) = False

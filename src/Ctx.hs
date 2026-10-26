@@ -224,6 +224,15 @@ addInd ind =
     void $ mapM (ensureUndef . csName) (indConstructors ind)
     setIndCtx $ inds `Map.union` (Map.singleton name ind)
 
+sealInd :: String → InCtx ()
+sealInd name =
+  do
+    ind ← getInd name
+    inds ← getIndCtx
+    let ind' = ind { indSealed = Sealed }
+    setIndCtx $ (Map.singleton name ind') `Map.union` inds
+    logMsg $ "Sealed inductive type " ++ name
+
 addDef :: String → Tm → Ty → InCtx ()
 addDef name tm ty =
   do

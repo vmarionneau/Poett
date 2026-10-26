@@ -259,4 +259,5 @@ showIndCtx ind =
                   ) $ [0.. length (indConstructors ind) - 1]
     arType ← arToType paramNames (indArity ind)
     sAr ← showTermCtx arType
-    pure $ "ind " ++ indName ind ++ " " ++ concat showPs ++ ": " ++ sAr ++ (if showCs == [] then "" else "\n| " ++ intercalate "\n| " showCs)
+    let sealInfo = if isIndSealed ind then "(sealed) " else ""
+    pure $ sealInfo ++ "ind " ++ indName ind ++ " " ++ concat showPs ++ ": " ++ sAr ++ (if showCs == [] then "" else "\n| " ++ intercalate "\n| " showCs)
