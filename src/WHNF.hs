@@ -28,7 +28,7 @@ whnf (App l r) =
         let args = take (length names) r in
         let remain = drop (length names) r in
           whnf (App (instantiate (reverse args) tm) remain)
-      App l'' r' → whnf (App l'' (r' ++ r)) 
+      App l'' r' → whnf (App l'' (r' ++ r))
       Elim lvl nameInd →
         do
           { ind ← getInd nameInd
@@ -49,7 +49,7 @@ whnf (App l r) =
                           ; rule ← constrElimRule ind lvl i
                           ; if length cargs == indParamLength ind + length (csArgs constr)
                             then whnf $ App (instantiate ((reverse $ drop (indParamLength ind) cargs) ++ reverse args) rule) (drop len r)
-                            else pure stuckRes  
+                            else pure stuckRes
                           }
                       else pure stuckRes
                     _ → pure stuckRes
@@ -78,7 +78,7 @@ whnf (Ident s) =
         ; case defBody df of
             Nothing → pure $ Ident s
             Just e → whnf e
-        } 
+        }
       else pure $ Ident s
 whnf t = pure t
 
@@ -190,7 +190,7 @@ convLegacy tml tmr =
         b1 ← convLegacy tm tm'
         let b2 = length args == length args'
         b3s ← mapM (uncurry convLegacy) $ zip args args'
-        pure $ b1 && b2 && all id b3s 
+        pure $ b1 && b2 && all id b3s
     aux (Cast tm _) (Cast tm' _) = convLegacy tm tm'
     aux (Constr nameInd i) (Constr nameInd' j) = pure $ i == j && nameInd == nameInd'
     aux (Elim lvl nameInd) (Elim lvl' nameInd') = pure $ lvl == lvl' && nameInd == nameInd'

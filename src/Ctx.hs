@@ -52,16 +52,16 @@ instance Functor InCtx where
 
 instance Applicative InCtx where
   pure x = InCtx (\ ctx → (Right (ctx, x), []))
-                 
+
   mf <*> mx = InCtx (\ ctx → let (fm, logs) = runInCtx mf ctx in
-                             case fm of 
+                             case fm of
                                Left err → (Left err, logs)
                                Right (ctx', f) → let (xm, logs') = runInCtx mx ctx' in
                                                   ((\ (ctx'', x) → (ctx'', f x)) <$> xm, logs ++ logs')
                     )
-              
+
 instance Monad InCtx where
-  mx >>= f = InCtx (\ ctx → 
+  mx >>= f = InCtx (\ ctx →
                         let (xm, logs) = runInCtx mx ctx in
                         case xm of
                             Left err → (Left err, logs)
@@ -95,7 +95,7 @@ inCtxOfMaybe s m = inCtxOfEither $ maybeEither s m
 
 inCtxTry :: InCtx a → InCtx (Either String a)
 inCtxTry m = InCtx (\ ctx → let (xm, logs) = runInCtx m ctx in
-                            case xm of 
+                            case xm of
                               Left err → (Right (ctx, Left err), logs)
                               Right (ctx', x) → (Right (ctx', Right x), logs)
                    )
@@ -183,7 +183,7 @@ asConstr s =
     inds ← getIndCtx
     inCtxOfMaybe ("Not a constructor of an inductive type : " ++ s)
       $ firstJust (\ (nameInd, ind) → elemIndex s (csName <$> indConstructors ind) >>= \ i → pure (nameInd, i)) (Map.toList inds)
-    
+
 getInd :: String → InCtx (Ind Ty)
 getInd s =
   do

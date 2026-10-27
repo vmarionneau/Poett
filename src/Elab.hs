@@ -65,7 +65,7 @@ boundToTerm (PPi name ty fam) =
     ty' ← boundToTerm ty
     fam' ← boundToTerm fam
     pure $ Pi (named name) ty' fam'
-    
+
 boundToTerm (PAbs name ty tm) =
   do
     ty' ← boundToTerm ty
@@ -91,7 +91,7 @@ boundToTerm (PBVar i) = pure $ BVar i
 boundToTerm (PElim lvl name) =
   do
     ind ← getInd name
-    if isIndSealed  ind 
+    if isIndSealed  ind
     then fail $ "Can't eliminate on sealed inductive type " ++ name
     else pure $ Elim lvl name
 
@@ -115,7 +115,7 @@ toParams = aux [] []
         ensureType ty'
         pName ← addVar (named name) ty'
         aux (pName:params) (name:seen) ps
-        
+
 toArity :: [Name] → [String] → PTy → InCtx (Arity Ty)
 toArity pNames pStrings pty =
   do
@@ -180,7 +180,7 @@ toCsArgs nameInd pNames args =
           if pars /= (FVar <$> (reverse pNames)) then
             fail $ "Parameters should be constant inside types of constructors for " ++ nameInd
           else pure True
-          else 
+          else
           checkAbsence tm >> pure False
     -- No need to check for the number of arguments, it typechecks
     checkRec (Ident s) = pure $ s == nameInd
@@ -200,7 +200,7 @@ toCsArgs nameInd pNames args =
     checkAbsence (Let _ ty tm body) = checkAbsence ty >> checkAbsence tm >> checkAbsence body
     checkAbsence (Cast tm ty) = checkAbsence tm >> checkAbsence ty
     checkAbsence _ = pure ()
-        
+
 toConstructor :: String → [Name] → [String] → Lvl → (String, PTy) → InCtx (Constructor Ty)
 toConstructor nameInd pNames pStrings lvl (name, pty) =
   do
@@ -211,7 +211,7 @@ toConstructor nameInd pNames pStrings lvl (name, pty) =
     sTy ← showTermCtx ty
     if lvl /= lvl'
       then fail $ "Incorrect universe size for constructor type " ++ sTy ++ ", expected " ++ show lvl ++ " and got " ++ show lvl'
-      else do 
+      else do
       let (args, body) = unravelPi (-1) ty'
       cArgs ← toCsArgs nameInd pNames args
       let (tm, tmArgs) = asApp body

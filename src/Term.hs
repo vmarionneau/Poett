@@ -8,7 +8,7 @@ import Data.Char (ord, chr)
 
 data Lvl = Type Int | Prop
   deriving Eq
- 
+
 showIndexDigit :: Int → Char
 showIndexDigit i = chr (ord '₀' + (i `mod` 10))
 
@@ -50,7 +50,7 @@ instance Eq Tm where
     (Constr s i) == (Constr s' j) = s == s' && i == j
     (Elim s l) == (Elim s' l') = s == s' && l == l'
     _ == _ = False
-    
+
 atMay :: [a] -> Int -> Maybe a
 atMay [] _ = Nothing
 atMay (h:_) 0 = Just h
@@ -70,12 +70,12 @@ instantiateOff _ _ tm = tm
 
 instantiate :: [Tm] → Tm → Tm
 instantiate = instantiateOff 0
-  
+
 instantiateTele :: [Tm] → [(Name, Ty)] → [(Name, Ty)]
 instantiateTele vals = aux 0
   where
     aux _ [] = []
-    aux off ((name,ty):tys) = (name, instantiateOff off vals ty) : aux (off + 1) tys  
+    aux off ((name,ty):tys) = (name, instantiateOff off vals ty) : aux (off + 1) tys
 
 abstract :: [Name] → Tm → Tm
 abstract names = aux 0
@@ -120,6 +120,6 @@ occurs i (BVar j) = i == j
 occurs i (Pi _ ty fam) = occurs i ty || occurs (i + 1) fam
 occurs i (Abs _ ty tm) = occurs i ty || occurs (i + 1) tm
 occurs i (Let _ ty tm1 tm2) = occurs i ty || occurs i tm1 || occurs (i + 1) tm2
-occurs i (Cast tm ty) = occurs i tm || occurs i ty 
+occurs i (Cast tm ty) = occurs i tm || occurs i ty
 occurs i (App tm args) = occurs i tm || any (occurs i) args
 occurs _ _ = False

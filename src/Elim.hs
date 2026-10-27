@@ -21,14 +21,14 @@ asApp tm = (tm, [])
 
 elimFam :: Lvl → Ind Ty → [Name] → InCtx Ty
 elimFam lvl ind paramNames =
-  do 
+  do
     let indices = instantiateTele (FVar <$> paramNames) $ indIndices ind
     indicesNames ← addTelescope indices
     let resIndTy = App (Ident (indName ind)) $ FVar <$> (reverse paramNames ++ reverse indicesNames)
     dummy ← freshName (named "x")
     let ty = Pi dummy resIndTy (U lvl)
     closeProducts indicesNames ty
-  
+
 csRecArgMotive :: Ind Ty → [Name] → Name → [Name] → Name → CsArg Ty → InCtx Ty
 csRecArgMotive ind paramNames famName csArgNames nonrec arg =
   do
@@ -45,7 +45,7 @@ csRecArgMotive ind paramNames famName csArgNames nonrec arg =
           ; closeProducts argNames resRecTy
           }
       _ → fail "Return type of argument labeled recursive is not recursive"
-    
+
 constrMotive :: Ind Ty → [Name] → Name → Int → InCtx Ty
 constrMotive ind paramNames famName i =
   do
@@ -142,5 +142,5 @@ constrElimRule ind lvl i =
                     _ → fail "Return type of argument labeled recursive is not recursive"
                 }
             else aux' args (nonRec:csArgNames) (FVar nonRec:tms)
-   
+
 

@@ -4,7 +4,7 @@ ind list (A : U₀) : U₀
 | nil : list A
 | cons : Π(h : A) Π(t : list A) list A
 
-ind Acc (A : U₀) (R : A → A → Prop) : A → Prop 
+ind Acc (A : U₀) (R : A → A → Prop) : A → Prop
 | acc : Π(x : A) Π(below : Π(y : A) R y x → Acc A R y) Acc A R x
 
 #fail ind negative : U₀
@@ -53,7 +53,7 @@ def forest-to-list (A : U₀) : forest A → list (tree A)
            (nil (tree A))
            (λ (t : tree A) (_ : unit) (_ : forest A), cons (tree A) t)
            true
- 
+
 def node (A : U₀) (x : A) (l : list (tree A)) : tree A
     := treeNode A x (list-to-forest A l)
 

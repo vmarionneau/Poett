@@ -47,7 +47,7 @@ def wlistToList (A : U₀) : wlist A → list A
              )
 
 def foo₀ : list unit
-    := nil unit 
+    := nil unit
 -- cons unit tt (cons unit tt (nil unit))
 
 def bar₀ : wlist unit
@@ -63,7 +63,7 @@ def oof : list unit
 #nf bar₀
 #nbe bar₀
 #nf oof
-#nbe oof 
+#nbe oof
 
 def wnat-fam := elim U₁ bool (λ (_ : bool), U₀) empty unit
 

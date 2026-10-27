@@ -12,9 +12,9 @@ def elimI (P : Interval → U₀) (x : P i0) (y : P i1) (p : eq (P i1) (transp I
 
 #fail def elI (P : Interval → U₀) (x : P i0) (y : P i1) (p : eq (P i1) (transp Interval P i0 i1 seg x) y) : Π (i : Interval) P i := elim U₀ Interval P x y
 
-def funext (A : U₀) (B : A → U₀) (f : Π (x : A) B x) (g : Π (x : A) B x) (p : Π (x : A) eq (B x) (f x) (g x)) : eq (Π (x : A) B x) f g 
-    := let (q : Π (x : A) eq (B x) (transp Interval (λ (_ : Interval), B x) i0 i1 seg (f x)) (g x)) 
-         := λ (x : A), trans (B x) (transp Interval (λ (_ : Interval), B x) i0 i1 seg (f x)) (f x) (g x) (transpconst Interval (B x) i0 i1 seg (f x)) (p x) 
+def funext (A : U₀) (B : A → U₀) (f : Π (x : A) B x) (g : Π (x : A) B x) (p : Π (x : A) eq (B x) (f x) (g x)) : eq (Π (x : A) B x) f g
+    := let (q : Π (x : A) eq (B x) (transp Interval (λ (_ : Interval), B x) i0 i1 seg (f x)) (g x))
+         := λ (x : A), trans (B x) (transp Interval (λ (_ : Interval), B x) i0 i1 seg (f x)) (f x) (g x) (transpconst Interval (B x) i0 i1 seg (f x)) (p x)
        in
        ap Interval (Π (x : A) B x) (λ (i : Interval) (x : A), elimI (λ (_ : Interval), B x) (f x) (g x) (q x) i) i0 i1 seg
-    
+

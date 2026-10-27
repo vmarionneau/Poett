@@ -20,7 +20,7 @@ def prop-refl (P : Prop) (H : P) : prop-eq P H H
 
 axiom propext (P : Prop) (H₁ : P) (H₂ : P) : prop-eq P H₁ H₂
 
-def prop-eq-elim (P : Prop) (H₁ : P) (T : Π(H₂ : P) prop-eq P H₁ H₂ → U₀) 
+def prop-eq-elim (P : Prop) (H₁ : P) (T : Π(H₂ : P) prop-eq P H₁ H₂ → U₀)
                  (T₁ : T H₁ (prop-refl P H₁)) (H₂ : P) : Π (r : prop-eq P H₁ H₂) T H₂ r
      := elim U₀ eq (lift P) (up P H₁)
           (elim U₁ lift P

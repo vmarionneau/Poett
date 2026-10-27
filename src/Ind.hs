@@ -44,7 +44,7 @@ csArgsLength :: Constructor ty → Int
 csArgsLength = length . csArgs
 
 indParamLength :: Ind ty → Int
-indParamLength = length . indParams 
+indParamLength = length . indParams
 
 indIndicesLength :: Ind ty → Int
 indIndicesLength = length . indIndices

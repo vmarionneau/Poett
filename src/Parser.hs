@@ -12,7 +12,7 @@ newtype Parser a b = Parser { runParser :: a → Maybe (b, a) }
 
 instance Functor (Parser a) where
   fmap f m = Parser (fmap (\ (b, as) → (f b, as)) . runParser m)
-             
+
 instance Applicative (Parser a) where
   mf <*> mx = Parser (\ as → runParser mf as >>= \ (f, as') →
                              runParser mx as' >>= \ (x, as'') →
@@ -172,7 +172,7 @@ setPos p =
   do
     str ← getStream
     setStream $ str { streamRow = posRow p, streamCol = posCol p }
-  
+
 peeking :: Parser a b → Parser a b
 peeking p =
   Parser
@@ -342,7 +342,7 @@ munchLine =
     mc ← parseMaybe next
     case mc of
       Nothing → pure ()
-      Just c → 
+      Just c →
         if c == '\n'
         then pure ()
         else munchLine
@@ -443,7 +443,7 @@ anchor p =
     setStream $ scope { scopes = p:scopes scope }
 
 deanchor :: Parser (Scoped (Loc a)) ()
-deanchor = 
+deanchor =
   do
     scope ← getStream
     setStream $ scope { scopes = drop 1 $ scopes scope }
@@ -460,7 +460,7 @@ nextTok =
     case (scopedData scope, scopes scope) of
       ([], _) → parserFail
       ((t:ts), []) → setStream (scope { scopedData = ts }) >> pure t
-      ((t:ts), p:_) → 
+      ((t:ts), p:_) →
         if pos t `inScope` p
         then setStream (scope { scopedData = ts }) >> pure t
         else parserFail
@@ -528,7 +528,7 @@ expr =
     fam ← locData <$> expr
     deanchor
     pure $ (PPi "_" (locData ty) fam) @< ty
- ) <|> expr' 
+ ) <|> expr'
 
 expr' :: Parser (Scoped (Loc (Token))) (Loc PTm)
 expr' =

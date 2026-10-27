@@ -22,7 +22,7 @@ indType ind =
     paramNames ← addTelescope params
     arType ← arToType paramNames (indArity ind)
     closeProducts paramNames arType
- 
+
 csArgType :: [Name] → [Name] → CsArg Ty → InCtx Ty
 csArgType paramNames csArgNames arg =
   do
@@ -61,62 +61,62 @@ constrType ind i =
 -- The following are not yet used anywhere
 
 hasSealedElim :: Tm → InCtx Bool
-hasSealedElim (Pi _ ty fam) = 
+hasSealedElim (Pi _ ty fam) =
     do
       b1 ← hasSealedElim ty
       b2 ← hasSealedElim fam
       pure $ b1 || b2
-hasSealedElim (Abs _ ty bod) = 
+hasSealedElim (Abs _ ty bod) =
     do
       b1 ← hasSealedElim ty
       b2 ← hasSealedElim bod
       pure $ b1 || b2
-hasSealedElim (App tm args) = 
+hasSealedElim (App tm args) =
     do
       b ← hasSealedElim tm
       bs ← mapM hasSealedElim args
       pure $ b || any id bs
-hasSealedElim (Let _ ty tm bod) = 
+hasSealedElim (Let _ ty tm bod) =
     do
       b1 ← hasSealedElim ty
       b2 ← hasSealedElim tm
       b3 ← hasSealedElim bod
       pure $ b1 || b2 || b3
-hasSealedElim (Cast tm ty) = 
+hasSealedElim (Cast tm ty) =
     do
       b1 ← hasSealedElim tm
       b2 ← hasSealedElim ty
       pure $ b1 && b2
 hasSealedElim (Elim _ name) =
-    do 
+    do
       ind ← getInd name
       pure $ isIndSealed ind
 hasSealedElim _ = pure False
 
 ensureNoSealedElim :: Tm → InCtx ()
-ensureNoSealedElim (Pi _ ty fam) = 
+ensureNoSealedElim (Pi _ ty fam) =
     do
       ensureNoSealedElim ty
       ensureNoSealedElim fam
-ensureNoSealedElim (Abs _ ty bod) = 
+ensureNoSealedElim (Abs _ ty bod) =
     do
       ensureNoSealedElim ty
       ensureNoSealedElim bod
-ensureNoSealedElim (App tm args) = 
+ensureNoSealedElim (App tm args) =
     do
       ensureNoSealedElim tm
       void $ mapM ensureNoSealedElim args
-ensureNoSealedElim (Let _ ty tm bod) = 
+ensureNoSealedElim (Let _ ty tm bod) =
     do
       ensureNoSealedElim ty
       ensureNoSealedElim tm
       ensureNoSealedElim bod
-ensureNoSealedElim (Cast tm ty) = 
+ensureNoSealedElim (Cast tm ty) =
     do
       ensureNoSealedElim tm
       ensureNoSealedElim ty
 ensureNoSealedElim (Elim _ name) =
-    do 
+    do
       ind ← getInd name
       if isIndSealed ind
       then fail $ "Can't eliminate on sealed inductive type " ++ name

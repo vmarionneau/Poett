@@ -32,7 +32,7 @@ asPi ty =
   do
     sTy ← showTermCtx ty
     fail $ "Expected product got " ++ sTy
-           
+
 infer :: Tm → InCtx Ty
 infer (FVar name) =
   do
@@ -88,7 +88,7 @@ infer (Elim lvl nameInd) =
     checkElim ind lvl
     elimType ind lvl
 infer (BVar _) = fail "Can't infer type of bound variables, convert them to free variables first"
-    
+
 check :: Tm → Ty → InCtx ()
 check tm ty =
   do
@@ -108,7 +108,7 @@ check tm ty =
       if b
         then pure ()
         else fail failMsg
-      
+
 checkElim :: Ind Ty → Lvl → InCtx ()
 checkElim ind lvl =
   if arSort (indArity ind) /= Prop || lvl == Prop
@@ -127,7 +127,7 @@ checkElim ind lvl =
                  ; -- TODO : fold properly with the right type over this
                  ; normIndices ← mapM whnf retIndices
                  ; void $
-                   mapM (\ name → 
+                   mapM (\ name →
                            do
                              { ty ← infer (FVar name)
                              ; u ← infer ty
@@ -157,11 +157,11 @@ ensureType ty =
     void $ normTy u >>= asU
 
 inferNorm :: Tm → InCtx Ty
-inferNorm tm = 
+inferNorm tm =
     do
       ty ← infer tm
       normTy ty
-      
+
 showTermCtx :: Tm → InCtx String
 showTermCtx (FVar name) = pure $ show name
 showTermCtx (BVar i) = pure $ show i
@@ -243,7 +243,7 @@ showIndCtx ind =
   do
     let params = indParams ind
     paramNames ← addTelescope params
-    showPs ← reverse <$> 
+    showPs ← reverse <$>
                  mapM (\name →
                          do
                           ty ← entryType <$> getLocal name

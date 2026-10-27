@@ -231,7 +231,7 @@ processFile fileName ctx =
         in do
           { putStrLn err'
           ; pure $ Left err'
-          } 
+          }
       Right ctx'' → pure $ Right ctx''
 
 split :: Char → String → [String]
@@ -240,7 +240,7 @@ split x (c:cs) =
   if c == x
   then
     "":split x cs
-  else 
+  else
     case split x cs of
       [] → [[c]]
       h:t → (c:h):t
@@ -258,7 +258,7 @@ repl =
           do
             end ← isEOF
             if end
-              then void $ processInput (unlines ls) path ctx 
+              then void $ processInput (unlines ls) path ctx
               else
               do
                 { l ← getLine

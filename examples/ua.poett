@@ -11,7 +11,10 @@ def trans₁ (A : U₁) (x : A) (y : A) (z : A) : eq₁ A x y → eq₁ A y z �
             (λ (p : eq₁ A x z), p) y
 
 ind is-equiv (A : U₀) (B : U₀) (f : A → B) : U₀
-| hasInv : Π (g : B → A) (h : B → A) (Π (x : A) eq A (g (f x)) x) → (Π (y : B) eq B (f (g y)) y) → is-equiv A B f
+| hasInv : Π (g : B → A) (h : B → A) (Π (x : A) eq A (g (f x)) x) → (Π (y : B) eq B (f (h y)) y) → is-equiv A B f
+
+def is-equiv-fun (A : U₀) (B : U₀) (f : A → B) : B → A
+    := elim U₀ is-equiv A B f (λ (_ : is-equiv A B f), B → A) (λ (g : B → A) (h : B → A) (_ : Π (x : A) eq A (g (f x)) x) (_ : Π (y : B) eq B (f (h y)) y) (y : B), (g (f (h y))))
 
 ind equiv (A : U₀) (B : U₀) : U₀
 | hasEquiv : Π (f : A → B) is-equiv A B f → equiv A B
@@ -28,7 +31,7 @@ ind equiv₁₀ (A : U₁) (B : U₀) : U₁
 def transp₁₀ (A : U₁) (B : A → U₀) (x : A) (y : A) (p : eq₁ A x y) (H : B x) : B y
     := elim U₀ eq₁ A x (λ (y : A) (_ : eq₁ A x y), B y) H y p
 
-def subst (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : A) : B 
+def subst (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : A) : B
     := transp₁₀ U₀ (λ (C : U₀), C) A B p x
 
 def subst-comp (A : U₀) (B : U₀) (C : U₀) (p : eq₁ U₀ A B) (q : eq₁ U₀ B C) (x : A) : eq C (subst B C q (subst A B p x)) (subst A C (trans₁ U₀ A B C p q) x)
@@ -41,10 +44,12 @@ def subst-sym₁ (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : A) : eq A (subs
 def sym₁-subst (A : U₀) (B : U₀) (p : eq₁ U₀ A B) (x : B) : eq B (subst A B p (subst B A (sym₁ U₀ A B p) x)) x
     := elim Prop eq₁ U₀ A (λ (B : U₀) (p : eq₁ U₀ A B), Π (x : B) eq B (subst A B p (subst B A (sym₁ U₀ A B p) x)) x) (λ (x : A), refl A x) B p x
 
-def subst-is-equiv (A : U₀) (B : U₀) (p : eq₁ U₀ A B) : is-equiv A B (subst A B p) 
+def subst-is-equiv (A : U₀) (B : U₀) (p : eq₁ U₀ A B) : is-equiv A B (subst A B p)
     := hasInv A B (subst A B p) (subst B A (sym₁ U₀ A B p)) (subst B A (sym₁ U₀ A B p)) (subst-sym₁ A B p) (sym₁-subst A B p)
 
 def eq₁-to-equiv (A : U₀) (B : U₀) (p : eq₁ U₀ A B) : equiv A B
     := hasEquiv A B (subst A B p) (subst-is-equiv A B p)
 
 axiom univalence (A : U₀) (B : U₀) : is-equiv₁₀ (eq₁ U₀ A B) (equiv A B) (eq₁-to-equiv A B)
+
+-- definition ua (A : U₀) (B : U₀)

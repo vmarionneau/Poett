@@ -45,7 +45,7 @@ proof add-assoc : Π(n : nat) Π(m : nat) Π(k : nat) eq nat (add n (add m k)) (
 
 def bot-above-succ : nat → Prop
     := elim U₀ nat (λ (_ : nat), Prop) top (λ (_ : nat) (_ : Prop), bot)
-    
+
 proof zero-neq-succ (n : nat) : not (eq nat zero (succ n))
       := λ (p : eq nat zero (succ n)),
            elim Prop eq nat zero
@@ -92,7 +92,7 @@ proof mul-succ-r : Π (n : nat) (m : nat) eq nat (mul n (succ m)) (add n (mul n 
                  ap nat nat succ n₀ n₄ n₀₄
                  -- S (n + S n * m) ≡β S n + S n * m
               )
-             
+
 proof mul-comm : Π (n : nat) (m : nat) eq nat (mul n m) (mul m n)
       := elim Prop nat (λ (n : nat), Π(m : nat) eq nat (mul n m) (mul m n))
               (λ (m : nat), sym nat (mul m zero) zero (mul-zero-r m))
@@ -116,7 +116,7 @@ proof mul-add-distr-l : Π(n : nat) (m : nat) (k : nat) eq nat (mul n (add m k))
                                     (add m (add k (add (mul n m) (mul n k))))
                                     (add (add m (mul n m)) (add k (mul n k)))
                                     (sym nat (add m (add k (add (mul n m) (mul n k))))
-                                             (add (add m k) (add (mul n m) (mul n k)))    
+                                             (add (add m k) (add (mul n m) (mul n k)))
                                              (add-assoc m k (add (mul n m) (mul n k)))
                                     )
                                     (trans nat (add m (add k (add (mul n m) (mul n k))))
@@ -126,7 +126,7 @@ proof mul-add-distr-l : Π(n : nat) (m : nat) (k : nat) eq nat (mul n (add m k))
                                                            (add k (add (mul n m) (mul n k)))
                                                            (add (add k (mul n m)) (mul n k))
                                                            (add-assoc k (mul n m) (mul n k))
-                                               ) 
+                                               )
                                                (trans nat (add m (add (add k (mul n m)) (mul n k)))
                                                           (add m (add (add (mul n m) k) (mul n k)))
                                                           (add (add m (mul n m)) (add k (mul n k)))
@@ -134,7 +134,7 @@ proof mul-add-distr-l : Π(n : nat) (m : nat) (k : nat) eq nat (mul n (add m k))
                                                                       (add k (mul n m))
                                                                       (add (mul n m) k)
                                                                       (add-comm k (mul n m))
-                                                              
+
                                                           )
                                                           (trans nat (add m (add (add (mul n m) k) (mul n k)))
                                                                      (add m (add (mul n m) (add k (mul n k))))
@@ -174,7 +174,7 @@ proof mul-add-distr-r (n : nat) (m : nat) (k : nat) : eq nat (mul (add n m) k) (
                                              )
                                   )
                        )
-                    
+
 proof mul-assoc : Π (n : nat) (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k)
        := elim Prop nat (λ (n : nat), Π (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul (mul n m) k))
            (λ (_ : nat) (_ : nat), refl nat zero)
@@ -187,5 +187,5 @@ proof mul-assoc : Π (n : nat) (m : nat) (k : nat) eq nat (mul n (mul m k)) (mul
                                 (add (mul m k) (mul (mul n m) k))
                                 (mul-add-distr-r m (mul n m) k)
                        )
-                       
+
            )

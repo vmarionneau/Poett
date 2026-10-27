@@ -10,7 +10,7 @@ ind top : Prop
 
 ind bot : Prop
 
-def not (A : Prop) : Prop 
+def not (A : Prop) : Prop
     := A → bot
 
 ind sum (A : U₀) (B : U₀) : U₀
@@ -18,12 +18,12 @@ ind sum (A : U₀) (B : U₀) : U₀
 | inr : B → sum A B
 
 ind sig (A : U₀) (B : A → U₀) : U₀
-| pr : Π(a : A) B a → sig A B 
+| pr : Π(a : A) B a → sig A B
 
 def prod (A : U₀) (B : U₀) : U₀ := sig A (λ (_ : A), B)
 
 ind ex (A : Prop) (B : A → Prop) : Prop
-| prEx : Π(a : A) B a → ex A B 
+| prEx : Π(a : A) B a → ex A B
 
 ind eq (A : U₀) (x : A) : A → Prop
 | refl : eq A x x
